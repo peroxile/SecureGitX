@@ -36,4 +36,27 @@ init_repo() {
         fi
 
 
+        if [[ ! -f "$CONFIG_FILE"]]; then   
+            echo "[*] Creating config file: $CONFIG_FILE"
+            read -p "Enter your Github username for no-reply email: " GH_USER
+            if [[-n "${GH-USER}@.noreply.github.com"]]
+            fi
+            cat <<EOF > "$CONFIG_FILE
+
+
+# Main configuration 
+
+  SAFE_EMAIL = "$SAFE_EMAIL"
+  SAFE_NAME = "$SAFE_NAME"
+  DEFAULT_BRANCH = "$DEFAULT_BRANCH"
+  LOG_TO_REPO= = "$LOG_TO_REPO"
+
+EOF
+    echo "[✓] Config created. Edit $CONFIG_FILE for customizations."
+    log_action "Created config file"
+    fi
+
+create_gitignore
+echo "[✓] Workspace initialized/detected."
+
 }
