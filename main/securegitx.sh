@@ -60,3 +60,24 @@ create_gitignore
 echo "[✓] Workspace initialized/detected."
 
 }
+
+
+create_gitignore() {
+    if [[ ! -f "$IGNORE_FILE"]]; then
+        echo "[*] Creating .gitignore..."
+        printf "%s\n" "${SENSITIVE_PATTERNS[@]}" > "$IGNORE_FILE"
+        git add "$IGNORE_FILE" || true
+        echo "[✓] .gitignore created and staged."
+        log_action "Created .gitignore"
+
+    else 
+        echo "[*] .gitignore exists. Apppending sensitive patterns if missing..."
+        for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            if ! grep -q "^$pattern" >> "$IGNORE_FILE"
+            fi
+        done
+        git add "$IGNORE_FILE" || true
+        echo "[✓] .gitignore updated."
+        log_action "Updated .gitignore"
+    fi
+}
