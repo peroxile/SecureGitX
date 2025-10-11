@@ -1,83 +1,128 @@
-#!/ bin/bash
+#!/bin/bash
 
-set -e 
+##################
+# SecureGitx - SecureGitX is a robust, Bash-based workflow automation script designed to enhance security for developers.
+# Version: 1.1.0
+# Workflow: Auth => Scan => Secure Commit
+##################
 
-CONFIG_FILE = " "
-SAFE_EMAIL = " "
-SAFE_NAME = " " 
-DEFAULT_BRANCH = ""
-IGNORE_FILE = ""
-LOG_FILE  = " "
-LOG_TO_REPO = "false"
+set -euo pipefail 
+set -x
 
+# Colors for output 
 
-SENSITIVE_PATTERNS = ("*.env" "*pem" "*key" "secrets/" "key/" "config.json" "*.wallet" "*.seed" "*.keystore" "*.mnemonic" "private/" "*.db" "database" "*.sqlite" "node_modules/" "__pycache__/" "*.log" "*.contract" "securegitxconfig" "*.securegitx.log")
-
-
-init_repo() {
-    echo "[*]  Iniatilizing/Detecting workspace.."
-    if [[! -d ".git"]]; then
-        echo "[!] No Git repo found. Initializing..."
-        git init
-        echo "[✓] Git repo initialized."
-    fi
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' 
 
 
-
-    if ! git remote | grep - q origin; then
-        echo "[!] No remote repo URL (e.g., git@github.com:username/repo.git):" REMOTE_URL
-    if [[ -n "$REMOTE_URL"]]; then  
-        git remote add origin "$REMOTE_URL"
-        log_action "Added remote $REMOTE_URL"
-    else
-        echo "[x] No remote configured. Exiting."
-        exit 1
-    fi
-        fi
+# Configuraton: Default configuration 
+CONFIG_FILE=".securegitx_config"
+GITIGNORE_MARKER="# Injected by SecureGitX"
+SCRIPT_VERSION="1.1.0"
 
 
-        if [[ ! -f "$CONFIG_FILE"]]; then   
-            echo "[*] Creating config file: $CONFIG_FILE"
-            read -p "Enter your Github username for no-reply email: " GH_USER
-            if [[-n "${GH-USER}@.noreply.github.com"]]
-            fi
-            cat <<EOF > "$CONFIG_FILE
+# Utility Functions 
 
+log_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
 
-# Main configuration 
+log_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
 
-  SAFE_EMAIL = "$SAFE_EMAIL"
-  SAFE_NAME = "$SAFE_NAME"
-  DEFAULT_BRANCH = "$DEFAULT_BRANCH"
-  LOG_TO_REPO= = "$LOG_TO_REPO"
+log_warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
 
-EOF
-    echo "[✓] Config created. Edit $CONFIG_FILE for customizations."
-    log_action "Created config file"
-    fi
+log_error() {
+    echo -e "${RED}✗${NC} $1"
+}
 
-create_gitignore
-echo "[✓] Workspace initialized/detected."
+log_step() {
+    echo -e "${CYAN}▶${NC} $1"
+}
 
+separator() {
+    echo "────────────────────────────────────────────────────────────────"
 }
 
 
-create_gitignore() {
-    if [[ ! -f "$IGNORE_FILE"]]; then
-        echo "[*] Creating .gitignore..."
-        printf "%s\n" "${SENSITIVE_PATTERNS[@]}" > "$IGNORE_FILE"
-        git add "$IGNORE_FILE" || true
-        echo "[✓] .gitignore created and staged."
-        log_action "Created .gitignore"
+# Configuration Management
 
-    else 
-        echo "[*] .gitignore exists. Apppending sensitive patterns if missing..."
-        for pattern in "${SENSITIVE_PATTERNS[@]}"; do
-            if ! grep -q "^$pattern" >> "$IGNORE_FILE"
-            fi
-        done
-        git add "$IGNORE_FILE" || true
-        echo "[✓] .gitignore updated."
-        log_action "Updated .gitignore"
+load_config() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        source "$CONFIG_FILE"
+        return 0
     fi
+    return 1
+}
+
+create_default_config() {
+    local github_username=$(git config --global user.name 2>/dev/null || echo "username")
+    github_username=$(echo "$github_username" | tr '[:upper]' '[:lower] ' | tr ' ' '-' )
+
+    cat > "$CONFIG_FILE" << EOF 
+
+# SecureGitx Configuration (v${SCRIPT_VERSION})
+# This file is automatically ignored by git
+
+# Safe email configuration
+SAFE_EMAIL="${github_username}@users.noreply.github.com"
+ENFORCE_SAFE_EMAIL=true
+
+# Sensitive file patterns to scan
+SCAN_PATTERNS=(
+"*.env"
+"*.env.*"
+"*.key"
+"*.pem"
+"*.p12"
+"*.pfx"
+"*.keystore"
+".secrets/"
+"secrets/"
+"secrets."
+"private.*"
+"credentials.*"
+".credentials"
+"config.json"
+".config.json"
+"*.password"
+"id_rsa"
+"id_dsa"
+"*.ppk"
+"*.log"
+"*.sql"
+"*.sqlite"
+"*.db"
+"*.database"
+"database"
+)
+
+# Excluded directories (This script won't the following:)
+
+EXCLUDE_DIRS=(
+
+".git"
+"node_modules"
+"vendor"
+"venv"
+".venv"
+"dist"
+"*.dist"
+"build"
+"__pycache__"
+".idea"
+".vscode"
+)
+EOF
+
+log_success "Created default configuration: $CONFIG_FILE"
+
+
 }
