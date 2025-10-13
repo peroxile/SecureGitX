@@ -75,6 +75,11 @@ create_default_config() {
 SAFE_EMAIL="${github_username}@users.noreply.github.com"
 ENFORCE_SAFE_EMAIL=true   # Hey buddy you can actually turn this off depending on your preference.
 
+
+# Auto .gitignore management 
+AUTO_GITIGNORE=true
+
+
 # Sensitive file patterns to scan
 SCAN_PATTERNS=(
 "*.env"
@@ -219,3 +224,241 @@ check_email_safety() {
 }
 
  
+ check_branch_state() {
+    log_step "Checking branch state..."
+
+    # Check for detached HEAD
+    if ! git symbolic-ref -q HEAD > /dev/null; then  
+        log_error "Detached HEAD state detected!"
+        echo ""
+        echo "You're not on a branch. Your commits may be lost."
+        echo "Create a branch first:"
+        echo " git checkout -b my-feature-branch"
+        echo ""
+        echo "Or checkout an existing branch:"
+        echo " git checkout main"
+        exit 1
+    fi
+
+    local current_branch=$(git branch --show-current)
+    log_success "On branch: $current_branch"
+ }
+
+
+# Phase 2: SCANNING - Repository Security Scan
+
+detect_project_type() {
+    local project_type="generic"
+
+    if [[ -f "package.json" ]];then
+        project_type="node"
+    elif [[ -f "requirements.txt" ]] || [[ -f "setup.py" ]] || [[ -f "pyproject.toml" ]]; then
+        project_type=::"python"
+    elif [[ -f "go.mod" ]]; then
+        project_type="go"
+    elif [[ -f "Cargo.toml" ]]; then
+        project_type="rust"
+    elif [[ -f "pom.xml" ]] || [[ -f "build.gradle" ]]; then
+        project_type="java"
+    elif [[ -f "composer.json" ]]; then
+        project_type="php"
+    fi
+
+    echo "$project_type"
+}
+
+get_gitignore_template() {
+    local project_type=$1
+
+    local common_ignores="
+    # OS generated files 
+    .DS_Store
+    .DS_Store?
+    ._*
+    .Spotlight-V100
+    .Trashes
+    ehthumbs.db
+    Thumbs.db
+    *~
+
+
+    # IDE and Editors files
+    .vscode/
+    .idea/
+    *.swp
+    *.swo
+    *.swn
+    .project
+    .settings/
+    *.sublime-*
+
+
+    # SecureGitx configuration
+    $CONFIG_FILE
+
+    # Security sesnsitive files
+*.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.ppk
+*.psk
+*.keystore
+.secrets/
+secrets/
+secrets.
+private.*
+credentials.*
+.credentials
+config.json
+.config.json
+*.json.key
+*.password
+id_rsa
+id_dsa
+*.ppk
+*.log
+*.sql
+*.sqlite
+*.db
+*.database
+database
+*.seed
+*.keystore
+*.mnemonic
+*.contract
+.chain/
+config.local.*    
+"
+
+    case $project_type in
+        node)
+            echo "$common_ignores
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+.yarn-integrity
+dist/
+build/"
+    ;;
+    python)
+        echo "$common_ignores
+# Python
+__pychache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+*.log
+.pytest_cache/"
+            ;;
+        go)
+            echo "$common_ignores
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+go.work"
+        ;;
+        php)
+            echo "$common_ignores
+# PHP
+vendor/
+composer.lock
+*.log
+.phpunit.result.cache
+"
+            ;;
+        *)
+
+           echo "$common_ignores"
+            ;;
+    esac            
+            
+}
+
+
+ensure_gitgnore() {
+    if [[ "$AUTO_GITIGNORE" != "true" ]]; then
+        return
+    fi
+
+    if [[ -f ".gitignore" ]]; then
+        if grep -q "$GITIGNORE_MARKER" .gitignore 2>/dev/null; then
+            log_success ".gitignore managed by SecureGitx"
+        else
+            log_info ".gitignore exists (user-managed)"
+        fi
+
+        # Ensure config file is ignored 
+        if ! grep -q "^$CONFIG_FILE$" .gitignore 2>/dev/null; then
+            echo "" >> .gitignore
+            echo "# SecureGitX" >> .gitignore
+            echo "$CONFIG_FILE" >> .gitignore
+            log_success "Added $CONFIG_FILE to .gitignore"
+        fi
+        return
+    fi
+
+    local project_type=$(detect_project_type)
+    log_info "Creating .gitignore for $project_type project..."
+
+    echo "$GITIGNORE_MARKER" > .gitignore
+    get_gitignore_template "$project_type" >> .gitignore
+
+    log_success "Created comprehensive .gitignore"
+}
+
+scan_sensitive_files() {
+    log_step "PHASE 2: SCANNING - Security Repository Scan"
+    separator
+
+    log_info "Scanning for sensitive files in repository..."
+
+
+    local found_issues=0
+    local exclude_args=""
+
+    # Build exclude arguments
+    for dir in "${EXCLUDE_DIRS[@]}"; do 
+        exclude_args="$exclude_args -path ./$dir -prune -o"
+    done
+
+    for pattern in "${SCAN_PATTERNS[@]}"; do
+        local files=$(eval "find . $exclude_args -name '$pattern' -type f -print" 2>/dev/null)
+
+        if [[ -n "$files" ]]; then
+            # Check if files are in git 
+            while IFS= read -r file; do 
+                if git ls-files --error-unmatch "$file" > /dev/null 2>&1; then
+                    log_warning "Tracked sensitive file: $file"
+                        found_issues=$((found_issues + 1))
+                fi
+            done <<< "$files"
+        fi
+    done
+
+    if [[ $found_issues -gt 0 ]]; then
+        return 1
+    fi
+
+    log_success "No sensitive files detected in repository"
+    return 0
+    
+}
