@@ -75,10 +75,8 @@ create_default_config() {
 SAFE_EMAIL="${github_username}@users.noreply.github.com"
 ENFORCE_SAFE_EMAIL=true   # Hey buddy you can actually turn this off depending on your preference.
 
-
 # Auto .gitignore management 
 AUTO_GITIGNORE=true
-
 
 # Sensitive file patterns to scan
 SCAN_PATTERNS=(
@@ -223,7 +221,6 @@ check_email_safety() {
 
 }
 
- 
  check_branch_state() {
     log_step "Checking branch state..."
 
@@ -462,3 +459,4 @@ scan_sensitive_files() {
     return 0
     
 }
+
