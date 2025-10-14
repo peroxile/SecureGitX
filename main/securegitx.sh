@@ -223,7 +223,7 @@ check_email_safety() {
 
 }
 
- 
+
  check_branch_state() {
     log_step "Checking branch state..."
 
