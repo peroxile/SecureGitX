@@ -64,7 +64,7 @@ load_config() {
 
 create_default_config() {
     local github_username=$(git config --global user.name 2>/dev/null || echo "username")
-    github_username=$(echo "$github_username" | tr '[:upper]' '[:lower] ' | tr ' ' '-' )
+    github_username=$(echo "$github_username" | tr '[:upper]' '[:lower]' | tr ' ' '-' )
 
     cat > "$CONFIG_FILE" << EOF 
 
@@ -75,8 +75,10 @@ create_default_config() {
 SAFE_EMAIL="${github_username}@users.noreply.github.com"
 ENFORCE_SAFE_EMAIL=true   # Hey buddy you can actually turn this off depending on your preference.
 
+
 # Auto .gitignore management 
 AUTO_GITIGNORE=true
+
 
 # Sensitive file patterns to scan
 SCAN_PATTERNS=(
@@ -220,6 +222,7 @@ check_email_safety() {
     fi
 
 }
+
 
  check_branch_state() {
     log_step "Checking branch state..."
@@ -460,3 +463,46 @@ scan_sensitive_files() {
     
 }
 
+
+# Phase 3: VALIDATION - Pre Commits Checks 
+
+scan_staged_files() {
+    log_step "PHASE 3: VALIDATION - Pre-Commit Security Check"
+    separator
+
+    log_info "Checking staged files..."
+
+    local staged_files=$(git diff --cached --name-only)
+
+    if [[ -z "$staged_files" ]]; then
+        log_warning "No files staged for commit"
+        return 0 
+    fi
+
+    log_info "Staged files: $(echo "$staged_files" | wc -l | tr -d ' ') file(s)"
+
+    echo ""
+    log_info "Staged Files:"
+    echo "$staged_files" | awk '{printf " • %s\n", $0}'
+
+
+    local issues=0
+
+
+    while IFS= read -r file; do 
+        for pattern in "${SCAN_PATTERNS[@]}"; do 
+            if [[ "$file" == $pattern ]] || [[ "$file" == *"/$pattern"* ]]; then
+                log_warning "Sensitive file staged: $file"
+                issues=$((issues + 1))
+            fi
+        done
+    done <<< "$staged_files"
+
+    if [[ $issues -gt 0 ]];then
+        return 1 
+    fi
+
+    log_success "All staged files passed security check"
+    return 0 
+
+}
