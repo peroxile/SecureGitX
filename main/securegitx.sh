@@ -506,3 +506,35 @@ scan_staged_files() {
     return 0 
 
 }
+
+
+# Phase 4: SECURE COMMIT - Final Execution 
+
+perform_secure_commit() {
+    log_step "PHASE 4: SECURE COMMIT - Finalizing"
+    separator
+
+    local commit_message=$1
+
+    log_info "Security checks passed. Ready to commit"
+    echo ""
+    echo " Commit details:"
+    echo " Author: $(git config user.name) <$(git config user.email)>"
+    echo " Branch: $(git branch --show-current)" 
+    echo " Files: $(git diff --cached --name-only | wc -l | tr -d ' ') staged"
+    echo " Message: \"$commit_message\""
+    echo " "
+
+
+    if git commit -m "$commit_message":; then
+        log_success "Commit successful!"
+        echo ""
+        echo "Latest commit:"
+        git log -1 --oneline
+        echo ""
+        log_success "SecureGitX workflow complete - All good!"
+    else 
+        log_error "Commit failed" 
+        exit 1
+    fi
+}
