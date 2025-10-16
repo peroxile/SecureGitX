@@ -7,7 +7,7 @@
 ##################
 
 set -euo pipefail 
-set -x
+# set -x
 
 # Colors for output 
 
@@ -538,3 +538,140 @@ perform_secure_commit() {
         exit 1
     fi
 }
+
+
+## Main Workflow 
+
+
+show_banner() {
+    cat << "EOF"
+    
+  ____                         _______     __      _   _
+ / __|\____ ___ _   _ _ __ ___|   ____( ) |  |__  \ \_/ /
+ \___ \ / _ \/ __| | | | '__/ _ \|  _ _ | |  _ _\  \/+\/
+  ___) |  __/ (__| |_| | | |  __/|__| | | |  |___  / /\ \
+ |____/ \___|\___|\__,_|_|  \___|_____|_|_|______|/_/  \_\
+                                        
+EOF
+    echo "  Git Security and Safety Automation v${SCRIPT_VERSION}"
+    echo " Workflow: Auth => Scan => Validate => Secure Commit"
+    separator
+
+}
+
+main() {
+    local commit_message=""
+    local force_safe_email=false
+
+    while [[ $# -gt 0 ]]; do 
+        case $1 in 
+            --safe-email)
+                force_safe_email=true
+                shift
+                ;;
+            --help|h)
+                show_banner
+                echo "Usage $0 [OPTIONS] [commit-message]"
+                echo ""
+                echo "Options:"
+                echo "  --safe-email    Force safe email configuration"
+                echo " --help, h        Show this help message"
+                echo ""
+                echo "Examples:"
+                echo "  $0             # Run security checks only"
+                echo "  $0 \"feat: add authentication\" "
+                echo " $0 --safe-email  # Email privacy check"
+                exit 0
+                    ;;
+                *)
+                    commit_message="$1"
+                    shift 
+                    ;;
+        esac
+    done
+
+    show_banner
+
+# invoke some functions:> 
+## Phase 1: AUTHENTICATION - Verify User Identity 
+
+check_git_repo
+log_success "Git repository detected"
+
+
+# Load or create configuration
+if ! load_config; then
+    log_info "first run - creating configuration..."
+    create_default_config
+    load_config
+else
+    log_success "Configuration loaded"
+fi
+
+separator
+
+
+check_user_identity # Check user identity and email safety
+
+check_branch_state  # Check branch state (not detached HEAD)
+
+separator
+
+
+
+## Phase 2: SCANNING - Repository Security Scan
+
+
+ensure_gitgnore     # Ensure .gitignore exists
+
+separator
+
+# Scan repository for existing sensitive files
+if ! scan_sensitive_files; then 
+    log_error "Security scan found issues in repository!"
+    echo ""
+    echo "Please review the warning before commiting."
+    echo "Options:"
+    echo " 1. Add files to .gitignore"
+    echo " 2. Remove sensitive data from files"
+    echo " 3. Use git-filter branch to clean history if already commited"
+    exit 1
+fi
+
+separator
+
+
+
+# Phase 3: VALIDATION - Pre Commits Checks 
+
+if [[ -n "$commit_message" ]]; then
+    
+    if ! scan_staged_files;then
+        log_error " Security issues found in staged files!"
+        echo ""
+        echo "Review the issues above, then take one of these actions:"
+        echo "  1. Unstage the file(s): git reset HEAD <file>"
+        echo "  2. Add them to .gitignore if they shouldn't be tracked"
+        echo "  3. Use --no-verify to proceed anyway (not recommended)"
+        exit 1
+    fi
+
+    separator
+
+
+# Phase 4: SECURE COMMIT - Final Execution 
+
+    perform_secure_commit "$commit_message"
+else
+    log_success "Security checks complete - repository is clean"
+    echo ""
+    echo "Next steps:"
+    echo " 1. Stage your changes: git add <files>"
+    echo " 2. Commit securely:    $0 \"your commit message\""
+    echo ""
+    log_info "No commit performed (no message provided)"
+fi
+
+}
+
+main "$@"
