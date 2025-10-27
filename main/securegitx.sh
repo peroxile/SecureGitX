@@ -75,7 +75,7 @@ create_default_config() {
 
 # Safe email configuration
 SAFE_EMAIL="${github_username}@users.noreply.github.com"
-ENFORCE_SAFE_EMAIL=true   # Hey buddy you can actually turn this off depending on your preference.
+ENFORCE_SAFE_EMAIL=false 
 
 
 # Auto .gitignore management 
@@ -192,13 +192,14 @@ log_success "Identity verified: $name <$email>"
 
 
 # check_email_safety "$email"      
-check_email_safety "$email"
+check_email_safety "$email" "$force_safe_email"
 
 }
 
 
 check_email_safety() {             
     local current_email=$1
+    local force_prompt=${2:-false}
 
     if [[ "$current_email" == *"@users.noreply.github.com" ]]; then
         log_success "Email safety protected  (Github no-reply)"  
@@ -207,24 +208,31 @@ check_email_safety() {
 
     log_warning "Personal email detected: $current_email"
 
-    if [[ "$ENFORCE_SAFE_EMAIL" == "true" ]]; then
+    if [[ "$ENFORCE_SAFE_EMAIL" == "true" ]] || [[ "$force_prompt" == "true" ]]; then
+        log_warning "Personal email detected: $current_email"
         echo ""
-        echo "Safety recommendation: Use Github's no-reply email"
-        echo "Safe email: $SAFE_EMAIL"
+        echo "Safety recommendation: "
+        echo "   Using a personal email exposes it in git history forever."
+        echo "   Consider using GitHub's no-reply email instead."
         echo ""
-        echo -n "Switch to safe email? [Y/n]"
+        echo " Your no-reply email: $SAFE_EMAIL"
+        echo ""
+        echo -n "Switch to safe email? [y/N]"
         read -r response 
-        response=${response:-Y}
+        response=${response:-N}
 
         if [[ "$response" =~ ^[Yy]$ ]]; then
             git config user.email "$SAFE_EMAIL"
             log_success "Switched to safe email: $SAFE_EMAIL"
         else
-            log_info "Keep current email (Email safety not enforced)"
+            log_info "Keep current email: $current_email"
         fi
+    else
+        log_info "Email: $current_email"
     fi
 
 }
+
 
 
  check_branch_state() {
@@ -533,7 +541,7 @@ perform_secure_commit() {
     echo " "
 
 
-    if git commit -m "$commit_message":; then
+    if git commit -m "$commit_message"; then
         log_success "Commit successful!"
         echo ""
         echo "Latest commit:"
@@ -568,13 +576,13 @@ EOF
 
 main() {
     local commit_message=""
-    local force_safe_email=false
+    local SAFE_EMAIL=false
 
     while [[ $# -gt 0 ]]; do 
         case $1 in 
             --safe-email)
             #force_safe_email appears unused. Verify use (or export if used externally).shellcheckSC2034
-                force_safe_email=true
+                SAFE_EMAIL=true
                 shift
                 ;;
             --help|h)
@@ -621,6 +629,11 @@ separator
 
 check_user_identity # Check user identity and email safety
 
+if [[ "$force_safe_email" == "true" ]]; then
+    local current_email=$(git config user.email)
+    check_email_safety "$current_email" true
+fi
+
 check_branch_state  # Check branch state (not detached HEAD)
 
 separator
@@ -630,7 +643,7 @@ separator
 ## Phase 2: SCANNING - Repository Security Scan
 
 
-ensure_gitgnore     # Ensure .gitignore exists
+ensure_gitignore     
 
 separator
 
