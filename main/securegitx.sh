@@ -94,9 +94,13 @@ SCAN_PATTERNS=(
 ".secrets/"
 "secrets/"
 "secrets."
+"*-secret/"
 "private.*"
+"private/"
 "credentials.*"
 ".credentials"
+"credentials/"
+"creds/"
 "config.json"
 ".config.json"
 "*.json.key"
@@ -190,10 +194,6 @@ fi
 
 log_success "Identity verified: $name <$email>"
 
-
-# check_email_safety "$email"      
-check_email_safety "$email" "$force_safe_email"
-
 }
 
 
@@ -206,8 +206,7 @@ check_email_safety() {
         return
     fi
 
-    log_warning "Personal email detected: $current_email"
-
+    # Only prompt if enabled OR --safe-email flag
     if [[ "$ENFORCE_SAFE_EMAIL" == "true" ]] || [[ "$force_prompt" == "true" ]]; then
         log_warning "Personal email detected: $current_email"
         echo ""
@@ -374,7 +373,7 @@ dist/
 build/
 *.log
 .pytest_cache/"
-            ;;
+        ;;
         go)
             echo "$common_ignores
 # Go
@@ -396,11 +395,31 @@ composer.lock
 *.log
 .phpunit.result.cache
 "
-            ;;
+        ;;
+        java)
+            echo "$common_ignores
+# Java
+    *.class
+*.jar
+*.war
+*.ear
+target/
+.gradle/
+build/
+*.log"
+        ;;
+        rust)
+            echo "$common_ignores
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb"
+        ;;
         *)
 
            echo "$common_ignores"
-            ;;
+        ;;
     esac            
             
 }
@@ -420,10 +439,14 @@ ensure_gitignore() {
 
         # Ensure config file is ignored 
         if ! grep -q  "^$CONFIG_FILE$" .gitignore 2>/dev/null; then
-            echo "" >> .gitignore
-            echo "# SecureGitX" >> .gitignore
-            echo "$CONFIG_FILE" >> .gitignore
-            log_success "Added $CONFIG_FILE to .gitignore"
+        
+            {
+                echo ""
+                echo "# SecureGitX"
+                echo "$CONFIG_FILE" 
+            } >> .gitignore
+        log_success "Added $CONFIG_FILE to .gitignore"
+
         fi
         return
     fi
@@ -576,26 +599,25 @@ EOF
 
 main() {
     local commit_message=""
-    local SAFE_EMAIL=false
+    local force_safe_email=false
 
     while [[ $# -gt 0 ]]; do 
         case $1 in 
             --safe-email)
-            #force_safe_email appears unused. Verify use (or export if used externally).shellcheckSC2034
-                SAFE_EMAIL=true
+                force_safe_email=true
                 shift
                 ;;
-            --help|h)
+            --help|-h)
                 show_banner
                 echo "Usage $0 [OPTIONS] [commit-message]"
                 echo ""
                 echo "Options:"
-                echo "  --safe-email    Force safe email configuration"
+                echo "  --safe-email    Prompt to switch to no-reply email"
                 echo " --help, h        Show this help message"
                 echo ""
                 echo "Examples:"
                 echo "  $0             # Run security checks only"
-                echo "  $0 \"feat: add authentication\" "
+                echo "  $0 \"feat: add authentication\" # Secure commit"
                 echo " $0 --safe-email  # Email privacy check"
                 exit 0
                     ;;
@@ -608,7 +630,6 @@ main() {
 
     show_banner
 
-# invoke some functions:> 
 ## Phase 1: AUTHENTICATION - Verify User Identity 
 
 check_git_repo
@@ -627,12 +648,14 @@ fi
 separator
 
 
-check_user_identity # Check user identity and email safety
+separator
 
-if [[ "$force_safe_email" == "true" ]]; then
-    local current_email=$(git config user.email)
-    check_email_safety "$current_email" true
-fi
+check_user_identity  # Check user identity
+
+# Always check email safety (behavior controlled by force_safe_email and config)
+local current_email
+current_email=$(git config user.email)
+check_email_safety "$current_email" "$force_safe_email"
 
 check_branch_state  # Check branch state (not detached HEAD)
 
