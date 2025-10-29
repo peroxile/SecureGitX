@@ -8,3 +8,6 @@ __pycache__/
 secrets/
 keys/
 config.json
+
+# SecureGitX
+.securegitx_config
