@@ -66,5 +66,63 @@ sudo mv securegitx.sh /usr/local/bin/securegitx
 
 ./securegitx.sh "feat: add authentication"
 ```
+---
 
+## Two Modes, One Tool
+
+SecureGitX adapts to your workflow: 
+
+
+### Mode 1: Manual (Explicit Control)
+
+```bash
+# You control when to run security checks 
+git add src/
+./securegitx.sh "feat: add feature"
+```
+
+**Best for:**
+- Learning SecureGitx
+- One-off commits 
+- When you want explicit control
+
+---
+
+### Mode 2: AUtomatic (Set & Forget)
+```bash
+# One-time setup
+./securegitx.sh --install
+
+# Now just use normal git 
+git add src/
+git commit -m "feat: add feature"  # SecureGitX runs automatically!
+```
+
+**Best for:**
+- Daily Development 
+- Team projects
+- When you might forget
+
+
+| Scenario | Recommended Mode | Why |
+|----------|-----------------|-----|
+| **Trying SecureGitX** | Manual | No commitment needed |
+| **Personal projects** | Your choice | Both work great |
+| **Team projects** | Automatic | Everyone stays protected |
+| **CI/CD pipelines** | Manual | More control |
+
+**Pro tip:** Start with Manual, switch to Automatic when you're comfortable!
+
+## Switching Modes
+```bash
+# Enable automatic mode 
+./securegitx.sh --uninstall
+
+# Disable automatic mode 
+./securegitx.sh --uninstall
+
+# Manual mode always works (even with hook installed)
+./securegitx.sh "urgent commit"
+
+```
 ---
