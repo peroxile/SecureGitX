@@ -275,6 +275,31 @@ detect_project_type() {
         project_type="php"
     fi
 
+# If still generic, scan actual files in repo
+   if [[ "$project_type" == "generic" ]]; then
+        # Check staged files (what user is committing)
+        local staged_files
+        staged_files=$(git ls-files 2>/dev/null || find . -type f -name "*.py" -o -name "*.js" -o -name "*.go" 2>/dev/null | head -10)
+
+        # Count file extensions
+        local py_count js_count go_count rs_count
+        py_count=$(echo "$staged_files" | grep -c '\.py$' || echo 0)
+        js_count=$(echo "$staged_files" | grep -c '\.(js|ts|jsx|tsx)$' || echo 0)
+        go_count=$(echo "$staged_files" | grep -c '\.go$' || echo 0)
+        rs_count=$(echo "$staged_files" | grep -c '\.rs$' || echo 0)
+
+        # Determine by file count 
+        if [[ $py_count -gt 2 ]]; then
+            project_type="python"
+        elif [[ $js_count -gt 2 ]]; then
+            project_type="node"
+        elif [[ $go_count -gt 2 ]]; then 
+            project_type="go"
+        elif [[ $rs_count -gt 2 ]]; then
+            project_type="rust"
+        fi
+    fi
+    
     echo "$project_type"
 }
 
@@ -282,53 +307,56 @@ get_gitignore_template() {
     local project_type=$1
 
     local common_ignores="
-    # OS generated files 
-    .DS_Store
-    .DS_Store?
-    ._*
-    .Spotlight-V100
-    .Trashes
-    ehthumbs.db
-    Thumbs.db
-    *~
+# OS generated files 
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
 
+# IDE and Editors files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.project
+.settings/
+*.sublime-*
 
-    # IDE and Editors files
-    .vscode/
-    .idea/
-    *.swp
-    *.swo
-    *.swn
-    .project
-    .settings/
-    *.sublime-*
+# SecureGitx configuration
+$CONFIG_FILE
 
-
-    # SecureGitx configuration
-    $CONFIG_FILE
-
-    # Security sesnsitive files
+# Security sensitive files
+*.env
 *.env.*
+.env.local
 *.key
 *.pem
 *.p12
 *.pfx
 *.ppk
-*.psk
 *.keystore
 .secrets/
 secrets/
-secrets.
+secret.*
+*-secrets/
+*-secret/
+private/
 private.*
+credentials/
 credentials.*
 .credentials
+creds/
 config.json
 .config.json
 *.json.key
 *.password
 id_rsa
 id_dsa
-*.ppk
 *.log
 *.sql
 *.sqlite
@@ -336,11 +364,10 @@ id_dsa
 *.database
 database
 *.seed
-*.keystore
 *.mnemonic
 *.contract
 .chain/
-config.local.*    
+config.local.*
 "
 
     case $project_type in
@@ -355,24 +382,29 @@ yarn-error.log*
 .eslintcache
 .yarn-integrity
 dist/
-build/"
+build/
+.next
+out/"
     ;;
     python)
         echo "$common_ignores
 # Python
 __pychache__/
 *.py[cod]
-*py.class
+*\$py.class
 *.so
 .Python
 env/
 venv/
+.venv/
 ENV/
 *.egg-info/
 dist/
 build/
 *.log
-.pytest_cache/"
+.pytest_cache/
+.mypy_cache/
+.tox/"
         ;;
         go)
             echo "$common_ignores
@@ -385,7 +417,8 @@ build/
 *.test
 *.out
 vendor/
-go.work"
+go.work
+go.sum"
         ;;
         php)
             echo "$common_ignores
@@ -406,7 +439,8 @@ composer.lock
 target/
 .gradle/
 build/
-*.log"
+*.log
+.project"
         ;;
         rust)
             echo "$common_ignores
