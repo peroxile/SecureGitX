@@ -277,6 +277,7 @@ detect_project_type() {
 
 # If still generic, scan actual files in repo
    if [[ "$project_type" == "generic" ]]; then
+
         # DECLARE COUNTER FIRST (FIX!)
 
         local py_count=0
@@ -284,9 +285,11 @@ detect_project_type() {
         local go_count=0
         local rs_count=0
 
+
         # Check staged files (what user is committing)
         local staged_files
         staged_files=$(git ls-files 2>/dev/null || find . -type f -name "*.py" -o -name "*.js" -o -name "*.go" 2>/dev/null | head -10)
+
 
         # Only count if we have files
         if [[ -n "$staged_files" ]];then
@@ -295,6 +298,13 @@ detect_project_type() {
             go_count=$(echo "$staged_files" | grep -c '\.go$' 2>/dev/null || echo 0)
             rs_count=$(echo "$staged_files" | grep -c '\.rs$' 2>/dev/null || echo 0)
         fi
+
+        # Count file extensions
+        local py_count js_count go_count rs_count
+        py_count=$(echo "$staged_files" | grep -c '\.py$' || echo 0)
+        js_count=$(echo "$staged_files" | grep -c '\.(js|ts|jsx|tsx)$' || echo 0)
+        go_count=$(echo "$staged_files" | grep -c '\.go$' || echo 0)
+        rs_count=$(echo "$staged_files" | grep -c '\.rs$' || echo 0)
 
         # Determine by file count 
         if [[ $py_count -gt 2 ]]; then
@@ -335,12 +345,16 @@ Thumbs.db
 *.sublime-*
 
 # SecureGitx configuration
+
 $CONFIG_FILE"
 
 # Security patterns (Only what's relevant to the project type)
     local security_base="
 # Security sensitive files (common)
 
+$CONFIG_FILE
+
+# Security sensitive files
 *.env
 *.env.*
 .env.local
@@ -349,6 +363,37 @@ $CONFIG_FILE"
 id_rsa
 id_dsa
 *.ppk
+*.p12
+*.pfx
+*.ppk
+*.keystore
+.secrets/
+secrets/
+secret.*
+*-secrets/
+*-secret/
+private/
+private.*
+credentials/
+credentials.*
+.credentials
+creds/
+config.json
+.config.json
+*.json.key
+*.password
+id_rsa
+id_dsa
+*.log
+*.sql
+*.sqlite
+*.db
+*.database
+database
+*.seed
+*.mnemonic
+*.contract
+.chain/
 config.local.*
 "
 
@@ -370,7 +415,7 @@ out/
 $security_base
 *.json.key
 .secrets/
-credentials/"
+credentials/" 
     ;;
     python)
         echo "$base_ignores
@@ -407,8 +452,7 @@ $security_base
 *.out
 vendor/
 go.work
-go.sum
-$security_base"
+go.sum"
         ;;
         rust)
             echo "$base_ignores
@@ -445,8 +489,7 @@ vendor/
 composer.lock
 *.log
 .phpunit.result.cache
-$security_base
-credentials/"
+$security_base"
             ;;
         generic)
             
