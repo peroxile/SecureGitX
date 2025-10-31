@@ -6,7 +6,7 @@
 # Workflow: Auth => Scan => Secure Commit
 ##################
 
-set -euo pipefail 
+set -euo pipefail
 # set -x
 
 # Colors for output 
@@ -277,16 +277,24 @@ detect_project_type() {
 
 # If still generic, scan actual files in repo
    if [[ "$project_type" == "generic" ]]; then
+        # DECLARE COUNTER FIRST (FIX!)
+
+        local py_count=0
+        local js_count=0
+        local go_count=0
+        local rs_count=0
+
         # Check staged files (what user is committing)
         local staged_files
         staged_files=$(git ls-files 2>/dev/null || find . -type f -name "*.py" -o -name "*.js" -o -name "*.go" 2>/dev/null | head -10)
 
-        # Count file extensions
-        local py_count js_count go_count rs_count
-        py_count=$(echo "$staged_files" | grep -c '\.py$' || echo 0)
-        js_count=$(echo "$staged_files" | grep -c '\.(js|ts|jsx|tsx)$' || echo 0)
-        go_count=$(echo "$staged_files" | grep -c '\.go$' || echo 0)
-        rs_count=$(echo "$staged_files" | grep -c '\.rs$' || echo 0)
+        # Only count if we have files
+        if [[ -n "$staged_files" ]];then
+            py_count=$(echo "$staged_files" | grep -c '\.py$' 2>/dev/null || echo 0)
+            js_count=$(echo "$staged_files" | grep -E -c '\.(js|ts|jsx|tsx)$' 2>/dev/null || echo 0)
+            go_count=$(echo "$staged_files" | grep -c '\.go$' 2>/dev/null || echo 0)
+            rs_count=$(echo "$staged_files" | grep -c '\.rs$' 2>/dev/null || echo 0)
+        fi
 
         # Determine by file count 
         if [[ $py_count -gt 2 ]]; then
@@ -306,8 +314,7 @@ detect_project_type() {
 get_gitignore_template() {
     local project_type=$1
 
-    local common_ignores="
-# OS generated files 
+    local base_ignores="# OS generated files 
 .DS_Store
 .DS_Store?
 ._*
@@ -328,51 +335,26 @@ Thumbs.db
 *.sublime-*
 
 # SecureGitx configuration
-$CONFIG_FILE
+$CONFIG_FILE"
 
-# Security sensitive files
+# Security patterns (Only what's relevant to the project type)
+    local security_base="
+# Security sensitive files (common)
+
 *.env
 *.env.*
 .env.local
 *.key
 *.pem
-*.p12
-*.pfx
-*.ppk
-*.keystore
-.secrets/
-secrets/
-secret.*
-*-secrets/
-*-secret/
-private/
-private.*
-credentials/
-credentials.*
-.credentials
-creds/
-config.json
-.config.json
-*.json.key
-*.password
 id_rsa
 id_dsa
-*.log
-*.sql
-*.sqlite
-*.db
-*.database
-database
-*.seed
-*.mnemonic
-*.contract
-.chain/
+*.ppk
 config.local.*
 "
 
     case $project_type in
         node)
-            echo "$common_ignores
+            echo "$base_ignores
 # Node.js
 node_modules/
 npm-debug.log*
@@ -384,10 +366,14 @@ yarn-error.log*
 dist/
 build/
 .next
-out/"
+out/
+$security_base
+*.json.key
+.secrets/
+credentials/"
     ;;
     python)
-        echo "$common_ignores
+        echo "$base_ignores
 # Python
 __pychache__/
 *.py[cod]
@@ -404,10 +390,13 @@ build/
 *.log
 .pytest_cache/
 .mypy_cache/
-.tox/"
+.tox/
+$security_base
+*.db
+*.sqlite"
         ;;
         go)
-            echo "$common_ignores
+            echo "$base_ignores
 # Go
 *.exe
 *.exe~
@@ -418,21 +407,22 @@ build/
 *.out
 vendor/
 go.work
-go.sum"
+go.sum
+$security_base"
         ;;
-        php)
-            echo "$common_ignores
-# PHP
-vendor/
-composer.lock
-*.log
-.phpunit.result.cache
-"
+        rust)
+            echo "$base_ignores
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+$security_base"
         ;;
         java)
-            echo "$common_ignores
+            echo "$base_ignores
 # Java
-    *.class
+*.class
 *.jar
 *.war
 *.ear
@@ -440,19 +430,55 @@ target/
 .gradle/
 build/
 *.log
-.project"
-        ;;
-        rust)
-            echo "$common_ignores
-# Rust
-target/
-Cargo.lock
-**/*.rs.bk
-*.pdb"
-        ;;
-        *)
+.classpath
+.project
+credentials.*
+*.keystore
+*.p12
+*.pfx
+$security_base"     
+            ;;
+        php)
+            echo "$base_ignores
+# PHP
+vendor/
+composer.lock
+*.log
+.phpunit.result.cache
+$security_base
+credentials/"
+            ;;
+        generic)
+            
+           echo "$base_ignores
+$security_base
 
-           echo "$common_ignores"
+# Common build directories 
+dist/
+build/
+target/
+node_modules/
+vendor/
+
+# Additional security patterns
+.secrets/
+secrets/
+secrets.*
+*-secrets/
+*-secret/
+private/
+private.*
+credentials/
+credentials.*
+.credentials
+creds/
+*.keystore
+*.p12
+*.pfx
+*.ppk
+*.mnemonic
+*.contract
+.chain/"
         ;;
     esac            
             
