@@ -637,6 +637,89 @@ perform_secure_commit() {
     fi
 }
 
+# Hook Installation & Management
+
+install_hook() {
+    log_step "Installing SecureGitX as git pre-commit hook..."
+    separator
+    
+    # Check if .git exists
+    if [[ ! -d ".git" ]]; then
+        log_error "Not a git repository"
+        exit 1
+    fi
+    
+    # Get absolute path to this script
+    local script_path
+    script_path=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")
+    local hook_path=".git/hooks/pre-commit"
+    
+    # Check if hook already exists
+    if [[ -f "$hook_path" ]]; then
+        # Check if it's our hook
+        if grep -q "SecureGitX pre-commit hook" "$hook_path" 2>/dev/null; then
+            log_info "SecureGitX hook already installed"
+            echo ""
+            echo " Automatic mode is active!"
+            echo ""
+            echo "Usage:"
+            echo "  git commit -m \"message\"         # Auto-protected"
+            echo "  ./securegitx.sh \"message\"       # Manual mode (still works)"
+            echo "  git commit --no-verify            # Emergency bypass"
+            exit 0
+        fi
+        
+        log_warning "Existing pre-commit hook found"
+        echo ""
+        echo "A pre-commit hook already exists (not installed by SecureGitX)."
+        echo "Backup will be created: ${hook_path}.backup"
+        echo ""
+        echo -n "Continue? [y/N]: "
+        read -r response
+        [[ ! "$response" =~ ^[Yy]$ ]] && log_info "Installation cancelled" && exit 0
+        
+        # Backup existing hook
+        cp "$hook_path" "${hook_path}.backup"
+        log_success "Existing hook backed up to ${hook_path}.backup"
+    fi
+    
+    # Create hooks directory if it doesn't exist
+    mkdir -p "$(dirname "$hook_path")"
+    
+    # Create the hook
+    cat > "$hook_path" << EOF
+#!/bin/bash
+# SecureGitX pre-commit hook (v${SCRIPT_VERSION})
+# Auto-installed on $(date)
+# DO NOT EDIT - Managed by SecureGitX
+
+# Run SecureGitX in hook mode
+"$script_path" --hook-mode
+
+# Exit with SecureGitX's exit code
+exit \$?
+EOF
+    
+    chmod +x "$hook_path"
+    
+    separator
+    log_success " Pre-commit hook installed successfully!"
+    echo ""
+    echo " Automatic mode is now enabled!"
+    echo ""
+    echo "What this means:"
+    echo "  • Every time you run 'git commit', SecureGitX runs automatically"
+    echo "  • Manual mode still works: ./securegitx.sh \"message\""
+    echo "  • Emergency bypass: git commit --no-verify"
+    echo ""
+    echo "Try it now:"
+    echo "  git add <files>"
+    echo "  git commit -m \"your message\"  # SecureGitX will run automatically!"
+    echo ""
+    log_info "Uninstall anytime with: $0 --uninstall"
+}
+
+
 
 ## Main Workflow 
 
