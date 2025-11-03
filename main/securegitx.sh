@@ -647,7 +647,11 @@ install_hook() {
     
     # Get absolute path to this script
     local script_path
+<<<<<<< HEAD
     script_path=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$(cd "$(dirname "$0")" && pwd)/$(basename "$0")")
+=======
+    script_path=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")
+>>>>>>> 28697a5 ( feat: Hook installation and Management (#15))
     local hook_path=".git/hooks/pre-commit"
     
     # Check if hook already exists
@@ -715,6 +719,7 @@ EOF
     log_info "Uninstall anytime with: $0 --uninstall"
 }
 
+<<<<<<< HEAD
 uninstall_hook() {
     log_step "Uninstalling SecureGitX hook..."
     separator
@@ -807,6 +812,8 @@ run_hook_mode() {
     exit 0
 }
 
+=======
+>>>>>>> 28697a5 ( feat: Hook installation and Management (#15))
 
 
 ## Main Workflow 
