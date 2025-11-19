@@ -273,9 +273,9 @@ detect_project_type() {
     fi
 
 # If still generic, scan actual files in repo
+
    if [[ "$project_type" == "generic" ]]; then
 
-        # DECLARE COUNTER FIRST 
         local py_count=0
         local js_count=0
         local go_count=0
@@ -288,16 +288,17 @@ detect_project_type() {
 
 
         # Only count if we have files
-        if [[ -n "$staged_files" ]];then
-            py_count=$(printf "%s\n" "$staged_files" | grep '\.py$' 2>/dev/null ||  wc -l | tr -d ' ')
-            js_count=$(printf "%s\n" "$staged_files" | grep -E '\.(js|ts|jsx|tsx)$' 2>/dev/null | wc -l | tr -d ' ')
-            go_count=$(printf "%s\n" "$staged_files" | grep '\.go$' 2>/dev/null | wc -l | tr -d ' ')
-            rs_count=$(printf "%s\n" "$staged_files" | grep '\.rs$' 2>/dev/null | wc -l | tr -d ' ')
-            
+        if [[ -n "$staged_files" ]];then         
             py_count=${py_count:-0}
             go_count=${go_count:-0}
             rs_count=${rs_count:-0}
+
+            py_count=$(echo "$staged_files" | grep '\.py$' 2>/dev/null || wc -l)
+            js_count=$(echo "$staged_files" | grep -E '\.(js|ts|jsx|tsx)$' 2>/dev/null || wc -l)
+            go_count=$(echo "$staged_files" | grep '\.go$' 2>/dev/null || wc -l)
+            rs_count=$(echo "$staged_files" | grep '\.rs$' 2>/dev/null || wc -l)
         fi
+        
 
         # Determine by file count 
         if [[ $py_count -gt 2 ]]; then
@@ -317,7 +318,9 @@ detect_project_type() {
 get_gitignore_template() {
     local project_type=$1
 
+
     local base_ignores="# OS generated files 
+# OS generated files 
 .DS_Store
 .DS_Store?
 ._*
@@ -343,6 +346,9 @@ $CONFIG_FILE"
 # Relevant patterns
     local security_base="
 # Security sensitive files (common)
+$CONFIG_FILE
+
+# Security sensitive files
 *.env
 *.env.*
 .env.local
@@ -451,6 +457,7 @@ $security_base"
             
            echo "$base_ignores
 $security_base
+
 
 # Common build directories 
 dist/
@@ -647,11 +654,7 @@ install_hook() {
     
     # Get absolute path to this script
     local script_path
-<<<<<<< HEAD
     script_path=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$(cd "$(dirname "$0")" && pwd)/$(basename "$0")")
-=======
-    script_path=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")
->>>>>>> 28697a5 ( feat: Hook installation and Management (#15))
     local hook_path=".git/hooks/pre-commit"
     
     # Check if hook already exists
@@ -719,7 +722,6 @@ EOF
     log_info "Uninstall anytime with: $0 --uninstall"
 }
 
-<<<<<<< HEAD
 uninstall_hook() {
     log_step "Uninstalling SecureGitX hook..."
     separator
@@ -812,8 +814,6 @@ run_hook_mode() {
     exit 0
 }
 
-=======
->>>>>>> 28697a5 ( feat: Hook installation and Management (#15))
 
 
 ## Main Workflow 
