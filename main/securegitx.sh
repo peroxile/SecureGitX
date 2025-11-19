@@ -276,9 +276,8 @@ detect_project_type() {
     fi
 
 # If still generic, scan actual files in repo
-   if [[ "$project_type" == "generic" ]]; then
+   if [[ "$project_type" == "generic" ]]; then      
         # DECLARE COUNTER FIRST (FIX!)
-
         local py_count=0
         local js_count=0
         local go_count=0
@@ -290,11 +289,18 @@ detect_project_type() {
 
         # Only count if we have files
         if [[ -n "$staged_files" ]];then
-            py_count=$(echo "$staged_files" | grep -c '\.py$' 2>/dev/null || echo 0)
-            js_count=$(echo "$staged_files" | grep -E -c '\.(js|ts|jsx|tsx)$' 2>/dev/null || echo 0)
-            go_count=$(echo "$staged_files" | grep -c '\.go$' 2>/dev/null || echo 0)
-            rs_count=$(echo "$staged_files" | grep -c '\.rs$' 2>/dev/null || echo 0)
+            py_count=$(echo "$staged_files" | grep '\.py$' 2>/dev/null || wc -l)
+            js_count=$(echo "$staged_files" | grep -E '\.(js|ts|jsx|tsx)$' 2>/dev/null || wc -l)
+            go_count=$(echo "$staged_files" | grep '\.go$' 2>/dev/null || wc -l)
+            rs_count=$(echo "$staged_files" | grep '\.rs$' 2>/dev/null || wc -l)
         fi
+        
+        # Count file extensions
+        local py_count js_count go_count rs_count
+        py_count=$(echo "$staged_files" | grep -c '\.py$' || echo 0)
+        js_count=$(echo "$staged_files" | grep -c '\.(js|ts|jsx|tsx)$' || echo 0)
+        go_count=$(echo "$staged_files" | grep -c '\.go$' || echo 0)
+        rs_count=$(echo "$staged_files" | grep -c '\.rs$' || echo 0)
 
         # Determine by file count 
         if [[ $py_count -gt 2 ]]; then
@@ -314,7 +320,9 @@ detect_project_type() {
 get_gitignore_template() {
     local project_type=$1
 
+
     local base_ignores="# OS generated files 
+# OS generated files 
 .DS_Store
 .DS_Store?
 ._*
@@ -340,6 +348,11 @@ $CONFIG_FILE"
 # Security patterns (Only what's relevant to the project type)
     local security_base="
 # Security sensitive files (common)
+
+$CONFIG_FILE
+
+# Security sensitive files
+
 
 *.env
 *.env.*
@@ -452,6 +465,7 @@ credentials/"
             
            echo "$base_ignores
 $security_base
+
 
 # Common build directories 
 dist/
