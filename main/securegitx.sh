@@ -289,10 +289,10 @@ detect_project_type() {
 
         # Only count if we have files
         if [[ -n "$staged_files" ]];then
-            py_count=$(echo "$staged_files" | grep -c '\.py$' 2>/dev/null || echo 0)
-            js_count=$(echo "$staged_files" | grep -E -c '\.(js|ts|jsx|tsx)$' 2>/dev/null || echo 0)
-            go_count=$(echo "$staged_files" | grep -c '\.go$' 2>/dev/null || echo 0)
-            rs_count=$(echo "$staged_files" | grep -c '\.rs$' 2>/dev/null || echo 0)
+            py_count=$(echo "$staged_files" | grep '\.py$' 2>/dev/null || wc -l)
+            js_count=$(echo "$staged_files" | grep -E '\.(js|ts|jsx|tsx)$' 2>/dev/null || wc -l)
+            go_count=$(echo "$staged_files" | grep '\.go$' 2>/dev/null || wc -l)
+            rs_count=$(echo "$staged_files" | grep '\.rs$' 2>/dev/null || wc -l)
         fi
         
         # Count file extensions
