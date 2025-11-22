@@ -278,7 +278,7 @@ detect_project_type() {
 # If still generic, scan actual files in repo
    if [[ "$project_type" == "generic" ]]; then
 
-        # DECLARE COUNTER FIRST (FIX!)
+        # DECLARE COUNTER FIRST 
 
         local py_count=0
         local js_count=0
@@ -288,23 +288,20 @@ detect_project_type() {
 
         # Check staged files (what user is committing)
         local staged_files
-        staged_files=$(git ls-files 2>/dev/null || find . -type f -name "*.py" -o -name "*.js" -o -name "*.go" 2>/dev/null | head -10)
+        staged_files=$(git ls-files 2>/dev/null || find . -type f \( -name "*.py" -o -name "*.js" -o -name "*.go" -o -name "*.rs" \) 2>/dev/null | head -10)
 
 
         # Only count if we have files
         if [[ -n "$staged_files" ]];then
-            py_count=$(echo "$staged_files" | grep -c '\.py$' 2>/dev/null || echo 0)
-            js_count=$(echo "$staged_files" | grep -E -c '\.(js|ts|jsx|tsx)$' 2>/dev/null || echo 0)
-            go_count=$(echo "$staged_files" | grep -c '\.go$' 2>/dev/null || echo 0)
-            rs_count=$(echo "$staged_files" | grep -c '\.rs$' 2>/dev/null || echo 0)
+            py_count=$(printf "%s\n" "$staged_files" | grep '\.py$' 2>/dev/null ||  wc -l | tr -d ' ')
+            js_count=$(printf "%s\n" "$staged_files" | grep -E '\.(js|ts|jsx|tsx)$' 2>/dev/null | wc -l | tr -d ' ')
+            go_count=$(printf "%s\n" "$staged_files" | grep '\.go$' 2>/dev/null | wc -l | tr -d ' ')
+            rs_count=$(printf "%s\n" "$staged_files" | grep '\.rs$' 2>/dev/null | wc -l | tr -d ' ')
+            
+            py_count=${py_count:-0}
+            go_count=${go_count:-0}
+            rs_count=${rs_count:-0}
         fi
-
-        # Count file extensions
-        local py_count js_count go_count rs_count
-        py_count=$(echo "$staged_files" | grep -c '\.py$' || echo 0)
-        js_count=$(echo "$staged_files" | grep -c '\.(js|ts|jsx|tsx)$' || echo 0)
-        go_count=$(echo "$staged_files" | grep -c '\.go$' || echo 0)
-        rs_count=$(echo "$staged_files" | grep -c '\.rs$' || echo 0)
 
         # Determine by file count 
         if [[ $py_count -gt 2 ]]; then
@@ -345,16 +342,11 @@ Thumbs.db
 *.sublime-*
 
 # SecureGitx configuration
-
 $CONFIG_FILE"
 
 # Security patterns (Only what's relevant to the project type)
     local security_base="
 # Security sensitive files (common)
-
-$CONFIG_FILE
-
-# Security sensitive files
 *.env
 *.env.*
 .env.local
@@ -363,39 +355,7 @@ $CONFIG_FILE
 id_rsa
 id_dsa
 *.ppk
-*.p12
-*.pfx
-*.ppk
-*.keystore
-.secrets/
-secrets/
-secret.*
-*-secrets/
-*-secret/
-private/
-private.*
-credentials/
-credentials.*
-.credentials
-creds/
-config.json
-.config.json
-*.json.key
-*.password
-id_rsa
-id_dsa
-*.log
-*.sql
-*.sqlite
-*.db
-*.database
-database
-*.seed
-*.mnemonic
-*.contract
-.chain/
-config.local.*
-"
+config.local.*" 
 
     case $project_type in
         node)
@@ -626,9 +586,7 @@ scan_staged_files() {
     log_info "Staged Files:"
     echo "$staged_files" | awk '{printf " • %s\n", $0}'
 
-
     local issues=0
-
 
     while IFS= read -r file; do 
         for pattern in "${SCAN_PATTERNS[@]}"; do 
@@ -760,6 +718,46 @@ EOF
     echo "  git commit -m \"your message\"  # SecureGitX will run automatically!"
     echo ""
     log_info "Uninstall anytime with: $0 --uninstall"
+}
+
+uninstall_hook() {
+    log_step "Uninstalling SecureGitX hook..."
+    separator
+
+    local hook_path=" .git/hooks/pre-commit/"
+
+    if [[ ! -f "$hook_path" ]]; then
+        log_info "No pre-commit hook installed"
+        exit 0
+    fi
+
+
+    # Check if it's our hook
+    if ! grep -q "SecureGitX pre-commit hook" "$hook_path" 2>/dev/null; then
+        log_warning "Pre-commit hook exists bu was not installed bys SecureGitX"
+        echo ""
+        echo -n "Remove it anyway? [y/N]: "
+        read -r response
+        [[  ! "$response" =~ ^[Yy]$ ]] && log_info "Uninstalled cancelled" && exit 0
+    fi
+
+    # Restore backup if exists
+    if [[ -f "${hook_path}.backup" ]]; then 
+        mv "${hook_path}.backup" "$hook_path"
+        log_success "Previous hook restored  from backup"
+    else 
+        rm "$hook_path"
+        log_success "Hooked removed"
+    fi
+    
+    separator 
+    log_success "Automatic mode disabaled"
+    echo ""
+    echo "Manual mode still works:"
+    echo "  ./securegitx.sh \"commit message\""
+    echo ""
+    echo "Reinstall anytime with: $0 --install"
+
 }
 
 
