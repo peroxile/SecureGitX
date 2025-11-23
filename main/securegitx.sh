@@ -19,10 +19,10 @@ CYAN='\033[0;36m'
 NC='\033[0m' 
 
 
-# Configuraton: Default configuration 
+# Configuration: Default configuration 
 CONFIG_FILE=".securegitx_config"
 GITIGNORE_MARKER="# Injected by SecureGitX"
-SCRIPT_VERSION="1.1.0"
+SCRIPT_VERSION="$(git describe --tags --dirty --always 2>/dev/null || echo '0.0.0-dev')"
 
 
 # Utility Functions 
@@ -68,7 +68,7 @@ create_default_config() {
     github_username=$(git config --global user.name 2>/dev/null || echo "username")
     github_username=$(echo "$github_username" | tr '[:upper]' '[:lower]' | tr ' ' '-' )
 
-    cat > "$CONFIG_FILE" << EOF 
+    cat > "$CONFIG_FILE" << EOF
 
 # SecureGitx Configuration (v${SCRIPT_VERSION})
 # This file is automatically ignored by git
@@ -77,10 +77,8 @@ create_default_config() {
 SAFE_EMAIL="${github_username}@users.noreply.github.com"
 ENFORCE_SAFE_EMAIL=false 
 
-
 # Auto .gitignore management 
 AUTO_GITIGNORE=true
-
 
 # Sensitive file patterns to scan
 SCAN_PATTERNS=(
@@ -125,7 +123,6 @@ SCAN_PATTERNS=(
 # Excluded directories (This script won't include the following DIRS:)
 
 EXCLUDE_DIRS=(
-
 ".git"
 "node_modules"
 "vendor"
@@ -158,7 +155,7 @@ check_git_repo() {
 }
 
 check_user_identity() {
-        log_step "PHASE 1: AUTHENTICATION - Verifying User Identity"
+    log_step "PHASE 1: AUTHENTICATION - Verifying User Identity"
     separator
 
     local name
@@ -216,7 +213,7 @@ check_email_safety() {
         echo ""
         echo " Your no-reply email: $SAFE_EMAIL"
         echo ""
-        echo -n "Switch to safe email? [y/N]"
+        echo -n "Switch to safe email? [y/N]: "
         read -r response 
         response=${response:-N}
 
@@ -224,7 +221,7 @@ check_email_safety() {
             git config user.email "$SAFE_EMAIL"
             log_success "Switched to safe email: $SAFE_EMAIL"
         else
-            log_info "Keep current email: $current_email"
+            log_info "Keeping current email: $current_email..."
         fi
     else
         log_info "Email: $current_email"
@@ -276,31 +273,32 @@ detect_project_type() {
     fi
 
 # If still generic, scan actual files in repo
-   if [[ "$project_type" == "generic" ]]; then      
-        # DECLARE COUNTER FIRST (FIX!)
+
+   if [[ "$project_type" == "generic" ]]; then
+
         local py_count=0
         local js_count=0
         local go_count=0
         local rs_count=0
 
-        # Check staged files (what user is committing)
+
+        # Check staged files 
         local staged_files
-        staged_files=$(git ls-files 2>/dev/null || find . -type f -name "*.py" -o -name "*.js" -o -name "*.go" 2>/dev/null | head -10)
+        staged_files=$(git ls-files 2>/dev/null || find . -type f \( -name "*.py" -o -name "*.js" -o -name "*.go" -o -name "*.rs" \) 2>/dev/null | head -10)
+
 
         # Only count if we have files
-        if [[ -n "$staged_files" ]];then
+        if [[ -n "$staged_files" ]];then         
+            py_count=${py_count:-0}
+            go_count=${go_count:-0}
+            rs_count=${rs_count:-0}
+
             py_count=$(echo "$staged_files" | grep '\.py$' 2>/dev/null || wc -l)
             js_count=$(echo "$staged_files" | grep -E '\.(js|ts|jsx|tsx)$' 2>/dev/null || wc -l)
             go_count=$(echo "$staged_files" | grep '\.go$' 2>/dev/null || wc -l)
             rs_count=$(echo "$staged_files" | grep '\.rs$' 2>/dev/null || wc -l)
         fi
         
-        # Count file extensions
-        local py_count js_count go_count rs_count
-        py_count=$(echo "$staged_files" | grep -c '\.py$' || echo 0)
-        js_count=$(echo "$staged_files" | grep -c '\.(js|ts|jsx|tsx)$' || echo 0)
-        go_count=$(echo "$staged_files" | grep -c '\.go$' || echo 0)
-        rs_count=$(echo "$staged_files" | grep -c '\.rs$' || echo 0)
 
         # Determine by file count 
         if [[ $py_count -gt 2 ]]; then
@@ -345,15 +343,12 @@ Thumbs.db
 # SecureGitx configuration
 $CONFIG_FILE"
 
-# Security patterns (Only what's relevant to the project type)
+# Relevant patterns
     local security_base="
 # Security sensitive files (common)
-
 $CONFIG_FILE
 
 # Security sensitive files
-
-
 *.env
 *.env.*
 .env.local
@@ -362,8 +357,7 @@ $CONFIG_FILE
 id_rsa
 id_dsa
 *.ppk
-config.local.*
-"
+config.local.*" 
 
     case $project_type in
         node)
@@ -383,7 +377,7 @@ out/
 $security_base
 *.json.key
 .secrets/
-credentials/"
+credentials/" 
     ;;
     python)
         echo "$base_ignores
@@ -420,8 +414,7 @@ $security_base
 *.out
 vendor/
 go.work
-go.sum
-$security_base"
+go.sum"
         ;;
         rust)
             echo "$base_ignores
@@ -458,8 +451,7 @@ vendor/
 composer.lock
 *.log
 .phpunit.result.cache
-$security_base
-credentials/"
+$security_base"
             ;;
         generic)
             
@@ -519,8 +511,7 @@ ensure_gitignore() {
                 echo "# SecureGitX"
                 echo "$CONFIG_FILE" 
             } >> .gitignore
-        log_success "Added $CONFIG_FILE to .gitignore"
-
+            log_success "Added $CONFIG_FILE to .gitignore"
         fi
         return
     fi
@@ -597,9 +588,7 @@ scan_staged_files() {
     log_info "Staged Files:"
     echo "$staged_files" | awk '{printf " • %s\n", $0}'
 
-
     local issues=0
-
 
     while IFS= read -r file; do 
         for pattern in "${SCAN_PATTERNS[@]}"; do 
@@ -665,7 +654,7 @@ install_hook() {
     
     # Get absolute path to this script
     local script_path
-    script_path=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")
+    script_path=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$(cd "$(dirname "$0")" && pwd)/$(basename "$0")")
     local hook_path=".git/hooks/pre-commit"
     
     # Check if hook already exists
@@ -733,6 +722,98 @@ EOF
     log_info "Uninstall anytime with: $0 --uninstall"
 }
 
+uninstall_hook() {
+    log_step "Uninstalling SecureGitX hook..."
+    separator
+
+    local hook_path=" .git/hooks/pre-commit"
+
+    if [[ ! -f "$hook_path" ]]; then
+        log_info "No pre-commit hook installed"
+        exit 0
+    fi
+
+
+    # Check known hook
+    if ! grep -q "SecureGitX pre-commit hook" "$hook_path" 2>/dev/null; then
+        log_warning "Pre-commit hook exists but was not installed bys SecureGitX"
+        echo ""
+        echo -n "Remove it anyway? [y/N]: "
+        read -r response
+        [[  ! "$response" =~ ^[Yy]$ ]] && log_info "Uninstalled cancelled" && exit 0
+    fi
+
+    # Restore backup if exists
+    if [[ -f "${hook_path}.backup" ]]; then 
+        mv "${hook_path}.backup" "$hook_path"
+        log_success "Previous hook restored  from backup"
+    else 
+        rm "$hook_path"
+        log_success "Hooked removed"
+    fi
+    
+    separator 
+    log_success "Automatic mode disabled"
+    echo ""
+    echo "Manual mode still works:"
+    echo "  ./securegitx.sh \"commit message\""
+    echo ""
+    echo "Reinstall anytime with: $0 --install"
+
+}
+
+
+run_hook_mode() {
+    # Hook mode: Run all checks but don't commit (git will commit)
+
+    check_git_repo
+
+    # Load or create configuration 
+    if ! load_config; then
+        create_default_config > /dev/null
+        load_config
+    fi
+
+    separator
+
+
+    # Phase 1: Authentication
+    check_user_identity
+    local current_email
+    current_email=$(git config user.email)
+    check_email_safety "$current_email" false
+    check_branch_state
+
+    separator
+
+    # Phase 2: Scanning
+    ensure_gitignore
+
+    separator
+
+    # Phase 3: Validation
+    if ! scan_staged_files; then
+        separator
+        log_error "Commit blocked by SecureGitX"
+        echo ""
+        echo "Review the warnings above, then:"
+        echo " 1. Unstage sensitive files: git reset HEAD <file>"
+        echo " 2. Add them .gitignore"
+        echo " 3. Try committing again"
+        echo ""
+        echo "Emergency bypass (NOT recommended):"
+        echo " git commit --no-verify -m \"message\""
+        exit 1
+    fi
+
+
+    separator
+    log_success "All security checks passed!"
+    log_info    "Git will proceed with the commit..."
+
+    exit 0
+}
+
 
 
 ## Main Workflow 
@@ -757,9 +838,25 @@ EOF
 main() {
     local commit_message=""
     local force_safe_email=false
+    local hook_mode=false
 
+    # Parse arguments
     while [[ $# -gt 0 ]]; do 
         case $1 in 
+            --install)
+                show_banner
+                install_hook
+                exit 0
+                ;;
+            --uninstall)
+                show_banner
+                uninstall_hook
+                exit 0
+                ;;
+            --hook-mode)
+                hook_mode=true
+                shift
+                ;;
             --safe-email)
                 force_safe_email=true
                 shift
@@ -768,14 +865,27 @@ main() {
                 show_banner
                 echo "Usage $0 [OPTIONS] [commit-message]"
                 echo ""
+                echo "  Manual Mode (Default):"
+                echo "  $0 \"commit message\"      # Run checks + commit"
+                echo ""
+                echo "  Automatic Mode"
+                echo "  $0 --install                # Setup once, forget forever"
+                echo "  git commit -m \"message\"   # Auto-protected!"
+                echo ""
                 echo "Options:"
-                echo "  --safe-email    Prompt to switch to no-reply email"
-                echo " --help, h        Show this help message"
+                echo "  --install       Install as git pre-commit hook"
+                echo "  --uninstall     Remove git hook"
+                echo "  --safe_email    Check email safety"
+                echo " --help, -h        Show this help"
                 echo ""
                 echo "Examples:"
-                echo "  $0             # Run security checks only"
-                echo "  $0 \"feat: add authentication\" # Secure commit"
-                echo " $0 --safe-email  # Email privacy check"
+                echo "  # Manual mode:"
+                echo "  $0 \"feat: add auth\"         # One-time security check"
+                echo ""
+                echo "  # Automatic mode:"
+                echo "  $0 --install                  # Auto Enable " 
+                echo "  git commit -m \"feat: add auth\"  # Safer"
+                echo ""
                 exit 0
                     ;;
                 *)
@@ -804,17 +914,14 @@ fi
 
 separator
 
-
-separator
-
-check_user_identity  # Check user identity
+check_user_identity  
 
 # Always check email safety (behavior controlled by force_safe_email and config)
 local current_email
 current_email=$(git config user.email)
 check_email_safety "$current_email" "$force_safe_email"
 
-check_branch_state  # Check branch state (not detached HEAD)
+check_branch_state  
 
 separator
 
@@ -831,11 +938,11 @@ separator
 if ! scan_sensitive_files; then 
     log_error "Security scan found issues in repository!"
     echo ""
-    echo "Please review the warning before commiting."
+    echo "Please review the warning before committing."
     echo "Options:"
     echo " 1. Add files to .gitignore"
     echo " 2. Remove sensitive data from files"
-    echo " 3. Use git-filter branch to clean history if already commited"
+    echo " 3. Use git-filter branch to clean history if already committed"
     exit 1
 fi
 
