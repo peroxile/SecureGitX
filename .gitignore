@@ -8,6 +8,7 @@ __pycache__/
 secrets/
 keys/
 config.json
+bats-core
 
 # SecureGitX
 .securegitx_config
