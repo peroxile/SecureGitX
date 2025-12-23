@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ##################
 # SecureGitX - Secure Git workflow automation 
@@ -6,7 +6,7 @@
 ##################
 
 set -euo pipefail
-# set -x
+set -x
 
 # --------- Metadata & Defaults ----------
 SCRIPT_VERSION=""
@@ -640,7 +640,7 @@ scan_sensitive_files() {
     done
 
     # Build combined name expressions
-    local name-expr
+    local name_expr
     name_expr=$(_build_find_pattern_expr)
 
     # Run find: prune excluded dirs, then test name Expr, print matched files
@@ -800,7 +800,8 @@ install_hook() {
     fi 
 
     # Backup existing hook
-    local backup="${hook_path}.backup.$(date +%s)"
+    local backup
+    backup="${hook_path}.backup.$(date +%s)"
     cp "$hook_path" "$backup"
     log_success "Existing hook backed up to $backup"
 
@@ -837,7 +838,8 @@ uninstall_hook() {
         # Hook exists but not our marker
         log_warning "Pre-commit hook exists but was not installed by SecureGitX"
         if confirm "Remove/replace it anyway? [y/N]: "; then
-            local backup2="${hook_path}.manual-backup.$(date +%s)"
+            local backup2
+            backup2="${hook_path}.manual-backup.$(date +%s)"
             mv "$hook_path" "$backup2"
             log_success "Existing hook moved to $backup2"
             install_hook
@@ -874,6 +876,22 @@ EOF
     separator
 }
 
+# ---------- Argument parsing ----------
+_usage() {
+  cat <<EOF
+Usage: $0 [OPTIONS] [commit-message]
+
+Options:
+  --safe-email         Prompt/force switching to safe GitHub no-reply email
+  --install            Install pre-commit hook
+  --uninstall          Uninstall pre-commit hook
+  --hook-mode          Run in hook-mode (used by installed hook)
+  --non-interactive    Non-interactive mode (CI)
+  --yes                Auto-confirm prompts
+  --json               Output machine-readable JSON for CI
+  --help, -h           Show this help message
+EOF
+}
 
 
 main() {
@@ -918,7 +936,7 @@ main() {
     if ! parse_config; then
         log_info "No config found: creating default config ($CONFIG_FILE)"
         create_default_config
-        # re-parse to laod values set by default
+        # re-parse to load values set by default
         parse_config || true
     else
         log_success "Configuration loaded ($CONFIG_FILE)"
@@ -973,4 +991,3 @@ main() {
 }
 
 main "$@"
-
