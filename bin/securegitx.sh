@@ -6,7 +6,7 @@
 ##################
 
 set -euo pipefail
-# set -x
+set -x
 
 # --------- Metadata & Defaults ----------
 SCRIPT_VERSION=""
@@ -990,6 +990,8 @@ main() {
   fi
 }
 
+
+main "$@"
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     main "$@"
 fi
