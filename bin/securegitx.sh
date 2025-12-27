@@ -6,7 +6,7 @@
 ##################
 
 set -euo pipefail
-set -x
+# set -x
 
 # --------- Metadata & Defaults ----------
 SCRIPT_VERSION=""
@@ -14,13 +14,13 @@ SCRIPT_VERSION="$(git describe --tags --dirty --always 2>/dev/null || echo '0.0.
 CONFIG_FILE=".securegitx_config"
 GITIGNORE_MARKER="# Injected by SecureGitX"
 DEFAULT_SAFE_EMAIL_SUFFIX="@users.noreply.github.com"
+PY_ANALYZER="$(dirname "$0")/../wrappers/securegitx_wrapper.py"
 
 
 # Output Modes
 NON_INTERACTIVE=false
 JSON_OUTPUT=false
 AUTO_YES=false 
-
 
 # Colors (if terminal supports)
 if test -t 1; then
@@ -678,47 +678,51 @@ scan_sensitive_files() {
     return 0
 }
 
-# Phase 3: VALIDATION - Pre Commits Checks 
 scan_staged_files() {
     log_step "PHASE 3: VALIDATION - Pre-Commit Security Check"
     separator
     log_info "Checking staged files..."
 
-# Get staged files
     mapfile -t staged_files < <(git diff --cached --name-only 2>/dev/null || true)
 
     if [[ ${#staged_files[@]} -eq 0 ]]; then
         log_warning "No files staged for commit"
         return 0
-    fi 
+    fi
 
     log_info "Staged files: ${#staged_files[@]} file(s)"
     for f in "${staged_files[@]}"; do
         printf " • %s\n" "$f"
     done
 
-    # For each staged file, check against patterns using bash glob matching.
     local issues=0
+
+    # 1. Filename-based checks
     for file in "${staged_files[@]}"; do
-      for pattern in "${SCAN_PATTERNS[@]}"; do
-        # Use case pattern match to allow wildcards in pattern variable
-        case "$file" in
-            $pattern)
-             log_warning "Sensitive file staged: $file (matched pattern: $pattern)"
-             issues=$((issues + 1))
-             ;;
-             *)
-                ;;
+        for pattern in "${SCAN_PATTERNS[@]}"; do
+            case "$file" in
+                $pattern)
+                    log_warning "Sensitive file staged: $file (matched pattern: $pattern)"
+                    issues=$((issues + 1))
+                    ;;
             esac
-       done
+        done
     done
 
-    if [[ $issues -gt 0 ]]; then
-        log_error "Detected $issues sensitive staged file(s)"
-        return 1
-    fi 
+    # 2. Content-based check (single unified diff)
+    if command -v python3 >/dev/null 2>&1; then
+        if ! git diff --cached | python3 "$PY_ANALYZER"; then
+            log_error "Sensitive content detected in staged changes"
+            issues=$((issues + 1))
+        fi
+    fi
 
-    log_success "All staged files passed security check"
+    if [[ $issues -gt 0 ]]; then
+        log_error "Detected $issues security issue(s) in staged files"
+        return 1
+    fi
+
+    log_success "All staged files passed security validation"
     return 0
 }
 
@@ -812,7 +816,7 @@ install_hook() {
 uninstall_hook() {
     log_step "Uninstalling SecureGitX pre-commit hook..."
     separator
-    local hook_path= ".git/hooks/pre-commit"
+    local hook_path=".git/hooks/pre-commit"
     if [[ ! -f "$hook_path" ]]; then
         log_info "No pre-commit hook installed"
     return 0
@@ -821,7 +825,7 @@ uninstall_hook() {
     if grep -q "SecureGitX pre-commit hook" "$hook_path" 2>/dev/null; then
         # try to find backup file (closest backup)
         local backup
-        backup=$(ls .git/hooks/pre-commit.backup* .git/hooks/pre-commit.backup.* 2>/dev/null | head -1 || true)
+        backup=$(find .git/hooks/pre-commit.backup* .git/hooks/pre-commit.backup.* 2>/dev/null | head -1 || true)
       if [[ -n "$backup" ]]; then
           mv "$backup" "$hook_path"
           log_success "Restored previous hook from backup: $backup"
@@ -990,9 +994,6 @@ main() {
   fi
 }
 
-
-main "$@"
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     main "$@"
 fi
-
