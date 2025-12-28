@@ -1,0 +1,22 @@
+# VCS
+.git
+.gitignore
+
+# Tests & docs
+tests/
+assets/
+README.md
+LICENSE
+
+# Local config
+.securegitx_config
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
