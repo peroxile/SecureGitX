@@ -34,7 +34,7 @@ log_success() { printf "%b ✓ %s%b\n" "$GREEN" "$1" "$NC"; }
 log_warning() { printf "%b ⚠ %s%b\n" "$YELLOW" "$1" "$NC"; }
 log_error()   { printf "%b ✗ %s%b\n" "$RED" "$1" "$NC"; }
 log_step()    { printf "%b ▶ %s%b\n" "$CYAN" "$1" "$NC"; }
-separator()   { printf '%s\n' "────────────────────────────────────────────────────────────────"; }
+separator()   { printf '%s\n' "──────────────────────────────────────────────────"; }
 
 
 # JSON helper
