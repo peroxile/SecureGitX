@@ -9,7 +9,6 @@ set -euo pipefail
 # set -x
 
 # --------- Metadata & Defaults ----------
-SCRIPT_VERSION=""
 SCRIPT_VERSION="$(git describe --tags --dirty --always 2>/dev/null || echo '0.0.0-dev')"
 CONFIG_FILE=".securegitx_config"
 GITIGNORE_MARKER="# Injected by SecureGitX"
@@ -109,7 +108,7 @@ _abs_path () {
         readlink -f "$f" 2>/dev/null || printf "%s\n" "$f"
     else
         # fallback: naive 
-        (cd "$(dirname "$f")" 2>/dev/null && printf '%s/%\n' "$(pwd -P)" "$(basename "$f")") || printf '%s\n' "$f"
+        (cd "$(dirname "$f")" 2>/dev/null && printf '%s/%s\n' "$(pwd -P)" "$(basename "$f")") || printf '%s\n' "$f"
     fi
 }
 
@@ -285,7 +284,7 @@ log_success "Created default configuration: $CONFIG_FILE"
 check_git_repo() {
     if ! git rev-parse --git-dir >/dev/null 2>&1; then
         log_error "Not a git repository. Run 'git init' first."
-        json_emit '{"error": "not_git_repo}' 1
+        json_emit '{"error": "not_git_repo"}' 1
         exit 1 
     fi
     log_success "Git repository detected"
@@ -334,7 +333,7 @@ check_email_safety() {
 
     if [[ "$ENFORCE_SAFE_EMAIL" == "true" ]] || [[ "$force_prompt" == "true" ]]; then
         log_warning "Personal email detected: $current_email"
-        printf "/nSafety recommendation: Using a personal email exposes it in git history. \nUsing this project's no-reply suggestion: %s\n\n"  "$SAFE_EMAIL"
+        printf "\nSafety recommendation: Using a personal email exposes it in git history. \nUsing this project's no-reply suggestion: %s\n\n"  "$SAFE_EMAIL"
         if confirm "Switch to safe email now? [y/N]: "; then
             git config user.email "$SAFE_EMAIL"
             log_success "Switched to safe email: $SAFE_EMAIL"
@@ -380,7 +379,7 @@ detect_project_type() {
         # count top extensions among tracked files (limit scanning) 
         counts=$(git ls-files | awk -F. '/\./ {print $NF}' | sort | uniq -c | sort -rn | head -10 || true)
         if echo "$counts" | grep -q '^ *[0-9]\+ .*py'; then project_type="python"; fi
-        if echo "$counts" | grep -q '^ *[0-9]\+ .*js\|ts\|jsx'; then project_type="node"; fi
+        if echo "$counts" | grep -q '^ *[0-9]\+ .*\\(js\\|ts\\|jsx\\)'; then project_type="node"; fi
         if echo "$counts" | grep -q '^ *[0-9]\+ .*go'; then project_type="go"; fi 
         if echo "$counts" | grep -q '^ *[0-9]\+ .*rs'; then project_type="rust"; fi
       fi 
@@ -452,7 +451,7 @@ EOF
         cat <<EOF 
 $base_ignores
 # Python
-__pychache__/
+__pycache__/
 *.py[cod]
 *\$py.class
 *.so
@@ -768,7 +767,7 @@ install_hook_file() {
     cat > "$hook_path" <<EOF
 #!/usr/bin/env bash
 # SecureGitX pre-commit hook (v${SCRIPT_VERSION})
-# Auto-installed on $(date --iso-8601=seconds 2>/dev/null || date)
+# Auto-installed on $(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date)
 # Managed by SecureGitX - safe to edit above this line 
 
 # call SecureGitX in hook mode; preserve cwd 
@@ -793,7 +792,7 @@ install_hook() {
     # If hook doesn't exist, create
     if [[ ! -f "$hook_path" ]]; then
         install_hook_file "$hook_path" "$script_path"
-        log_success "Pre-commit hook installed at $hook_path"
+        log_success "Pre-commit hook replaced with SecureGitX version"
     return 0
     fi 
 
@@ -855,7 +854,7 @@ uninstall_hook() {
 
         
 # Trap and cleanup
-on-error() {
+on_error() {
     local rc=$?
     log_error "An unexpected error occurred (exit code: $rc)"
     json_emit "{\"status\":\"error\",\"message\":\"unexpected_error\",\"code\":$rc}" 1
@@ -901,7 +900,6 @@ EOF
 main() {
     local commit_message=""
     local force_safe_email=false
-    local hook_mode=false
 
     # parse flags 
     while [[ $# -gt 0 ]]; do 
@@ -909,11 +907,10 @@ main() {
             --safe-email) force_safe_email=true shift ;;
             --install) install_hook; exit 0 ;;
             --uninstall) uninstall_hook; exit 0 ;;
-            --hook-mode) hook_mode=true; shift ;;
             --non-interactive) NON_INTERACTIVE=true; shift ;;
             --yes) AUTO_YES=true; shift ;;
             --json) JSON_OUTPUT=true; shift ;;
-            --help|h) _usage; exit 0 ;;
+            --help|-h) _usage; exit 0 ;;
             --) shift; break ;;
             -*)
                 log_error "Unknown option: $1"
