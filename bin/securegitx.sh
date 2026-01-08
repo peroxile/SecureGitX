@@ -710,7 +710,10 @@ scan_staged_files() {
 
     # 2. Content-based check (single unified diff)
     if command -v python3 >/dev/null 2>&1; then
-        if ! git diff --cached | python3 "$PY_ANALYZER"; then
+        if [[ ! -f "$PY_ANALYZER" ]]; then
+            log_warning "Python analyzer not found at: $PY_ANALYZER"
+            log_info "Skipping content-based secret detection"
+        elif ! git diff --cached | python3 "$PY_ANALYZER"; then
             log_error "Sensitive content detected in staged changes"
             issues=$((issues + 1))
         fi
