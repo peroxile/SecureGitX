@@ -614,12 +614,23 @@ _build_find_pattern_expr() {
     local expr=""
     local first=true
     for pat in "${SCAN_PATTERNS[@]}"; do 
-        # if pattern is like "/dir/*", we leave it to -path check in find, but for simplicity -name should be used for typical globs
-        if [[ "$first" == true ]]; then
-            expr="-name '$pat'" 
-            first=false
+        # Handle path-based patterns vs name patterns
+        if [[ "$pat" == *"/"* ]]; then
+            # Path pattern
+            if [[ "$first" == true ]]; then
+                expr="-path './$pat'" 
+                first=false
+            else
+                expr="$expr -o -path './$pat'"
+            fi
         else
-            expr="$expr -o -name '$pat'"
+            # Name pattern
+            if [[ "$first" == true ]]; then
+                expr="-name '$pat'"
+                first=false
+            else
+                expr="$expr -o -name '$pat'"
+            fi
         fi
     done
     printf '%s' "$expr"
