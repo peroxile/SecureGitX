@@ -213,7 +213,7 @@ create_default_config() {
 
     # use default safe email from global Git name if available 
     local github_username
-    github_username=$(git config --global user.name 2>dev/null || echo "username" )
+    github_username=$(git config --global user.name 2>/dev/null || echo "username" )
     github_username=$(echo "$github_username" | tr '[:upper:]' '[:lower]' | tr ' ' '-')
     SAFE_EMAIL="${github_username}${DEFAULT_SAFE_EMAIL_SUFFIX}"
 
@@ -307,7 +307,7 @@ check_user_identity() {
         log_error "Git user.email is not configured"
         log_info "Set with: git config user.email \"you@example.com\""
         log_info "Or globally: git config --global user.email \"you@example.com\""
-        json_emit '{"error":"missing_user_email}' 1
+        json_emit '{"error":"missing_user_email"}' 1
         exit 1
     fi
     log_success "Identity verified: $name <$email>"
@@ -609,31 +609,18 @@ ensure_gitignore() {
 
 # PHASE 2: SCANNING - Security Repository Scan
 #build a find expression combining patterns
-_build_find_pattern_expr() {
-    # returns a string like: -name 'pat1' -o -name 'pat2' ...
-    local expr=""
-    local first=true
-    for pat in "${SCAN_PATTERNS[@]}"; do 
-        # Handle path-based patterns vs name patterns
+_build_find_pattern_args() {
+    local args=()
+    for pat in "${SCAN_PATTERNS[@]}"; do
         if [[ "$pat" == *"/"* ]]; then
-            # Path pattern
-            if [[ "$first" == true ]]; then
-                expr="-path './$pat'" 
-                first=false
-            else
-                expr="$expr -o -path './$pat'"
-            fi
+            args+=( -path "./$pat" )
         else
-            # Name pattern
-            if [[ "$first" == true ]]; then
-                expr="-name '$pat'"
-                first=false
-            else
-                expr="$expr -o -name '$pat'"
-            fi
+            args+=( -name "$pat" )
         fi
+        args+=( -o )
     done
-    printf '%s' "$expr"
+    unset 'args[-1]'  # Remove last -o
+    printf '%s ' "${args[@]}"
 }
 
 scan_sensitive_files() {
@@ -650,16 +637,12 @@ scan_sensitive_files() {
     done
 
     # Build combined name expressions
-    local name_expr
-    name_expr=$(_build_find_pattern_expr)
+    local pattern_args
+    pattern_args=$(_build_find_pattern_args)
+    found_list=$(find . "$prune_clause" -type f \( $pattern_args \) -print 2>/dev/null || true)
 
-    # Run find: prune excluded dirs, then test name Expr, print matched files
-    # Use eval here carefully to expand the built string; patterns are quoted in generator
-    local found_list
-    found_list=$(eval "find . $prune_clause -type f \\( $name_expr \\) -print" 2>/dev/null || true)
 
     local found_issues=0
-
     #   Check which of the found files are tracked
     if [[ -n "$found_list" ]]; then
         # For large repos, it's faster to use git ls-files to check tracked files
@@ -821,9 +804,8 @@ install_hook() {
     backup="${hook_path}.backup.$(date +%s)"
     cp "$hook_path" "$backup"
     log_success "Existing hook backed up to $backup"
-
-
-
+    install_hook_file "$hook_path" "$script_path"
+    log_success "Installed SecureGitX pre-commit hook"
 }
 
 uninstall_hook() {
@@ -852,27 +834,25 @@ uninstall_hook() {
         fi
       fi
     else
+
         # Hook exists but not our marker
         log_warning "Pre-commit hook exists but was not installed by SecureGitX"
         if confirm "Remove/replace it anyway? [y/N]: "; then
             local backup2
-            backup2="${hook_path}.manual-backup.$(date +%s)"
+            backup2="${hook_path}.manual_backup. $(date +%s)"
             mv "$hook_path" "$backup2"
-            log_success "Existing hook moved to $backup2"
-            install_hook
+            log_success "Existing hook moved to $backup2 and removed"
         else
-            log_info "Uninstall skipped"
-        fi
+        log_info "Uninstall skipped"
+    fi
     fi
 }
-
-        
-# Trap and cleanup
-on_error() {
-    local rc=$?
-    log_error "An unexpected error occurred (exit code: $rc)"
-    json_emit "{\"status\":\"error\",\"message\":\"unexpected_error\",\"code\":$rc}" 1
-    exit "$rc"
+    # Trap and cleanup
+    on_error() {
+        local rc=$?
+        log_error "An unexpected error occurred (exit code: $rc)"
+        json_emit "{\"status\":\"error\",\"message\":\"unexpected_error\",\"code\":$rc}" 1
+        exit "$rc"
 }
 trap on_error ERR
 
@@ -907,6 +887,10 @@ Options:
   --yes                Auto-confirm prompts
   --json               Output machine-readable JSON for CI
   --help, -h           Show this help message
+    Examples:
+$0 # Setup and scan only
+$0 "commit message" # Full workflow with commit
+$0 --install # Install pre-commit hook
 EOF
 }
 
@@ -914,6 +898,7 @@ EOF
 main() {
     local commit_message=""
     local force_safe_email=false
+    local hook_mode=false
 
     # parse flags 
     while [[ $# -gt 0 ]]; do 
@@ -921,6 +906,7 @@ main() {
             --safe-email) force_safe_email=true shift ;;
             --install) install_hook; exit 0 ;;
             --uninstall) uninstall_hook; exit 0 ;;
+            --hook-mode) hook_mode=true; NON_INTERACTIVE=true; shift ;;
             --non-interactive) NON_INTERACTIVE=true; shift ;;
             --yes) AUTO_YES=true; shift ;;
             --json) JSON_OUTPUT=true; shift ;;
@@ -942,16 +928,24 @@ main() {
               ;; 
         esac
     done
-
+    # Hook mode: minimal output, only scan staged files
+    if [[ "$hook_mode" == "true" ]]; then
+        check_git_repo
+        parse_config 2>/dev/null || true
+            if ! scan_staged_files; then
+        exit 1
+            fi
+        exit 0
+    fi  
     show_banner
 
-    # repo & config
+    # Repo & config
     check_git_repo
 
     if ! parse_config; then
         log_info "No config found: creating default config ($CONFIG_FILE)"
         create_default_config
-        # re-parse to load values set by default
+        # Re-parse to load values set by default
         parse_config || true
     else
         log_success "Configuration loaded ($CONFIG_FILE)"
