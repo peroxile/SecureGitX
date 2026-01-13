@@ -1,0 +1,21 @@
+{
+    "patterns": {
+      "aws_access_key": "AKIA[0-9A-Z]{16}",
+      "aws_secret_key": "aws_secret_access_key\\s*=\\s*[\"']?([A-Za-z0-9/+=]{40})[\"']?",
+      "stripe_api_key": "sk_(live|test)_[0-9a-zA-Z]{24,}",
+      "github_token": "gh[ps]_[0-9a-zA-Z]{36,}",
+      "github_oauth": "gho_[0-9a-zA-Z]{36,}",
+      "slack_token": "xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,}",
+      "google_api_key": "AIza[0-9A-Za-z_-]{35}",
+      "private_key_header": "-----BEGIN (RSA |EC )?PRIVATE KEY-----",
+      "jwt_token": "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}",
+      "database_url": "(mongodb|mysql|postgresql|redis)://[^:]+:[^@]+@[^/]+",
+      "npm_token": "npm_[A-Za-z0-9]{36}",
+      "sendgrid_api_key": "SG\\.[a-zA-Z0-9_-]{22}\\.[a-zA-Z0-9_-]{43}",
+      "ethereum_private_key": "(0x)?[a-fA-F0-9]{64}",
+      "generic_api_key": "api[_-]?key\\s*[:=]\\s*[\"']?([A-Za-z0-9_\\-]{16,})[\"']?",
+      "generic_secret": "secret\\s*[:=]\\s*[\"']?([A-Za-z0-9_\\-]{16,})[\"']?",
+      "password_in_url": "[a-zA-Z]{3,10}://[^:]+:([^@\\s]{8,})@"
+    },
+    "description": "Custom secret detection patterns for SecureGitX"
+  }
