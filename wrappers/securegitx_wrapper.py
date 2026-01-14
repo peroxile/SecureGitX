@@ -17,7 +17,8 @@ with open(os.path.join(script_dir, 'rules.json'), 'r') as f:
 SECRET_PATTERNS = {name: re.compile(pattern) for name, pattern in RULES_DATA['patterns'].items()}
 
 ENTROPY_THRESHOLD = 4.5
-CODE_INDICATORS = ['=', ':', 'import', 'def ', 'class ', 'for ', 'if ', 're.compile']  # Skip code-like lines for entropy
+CODE_INDICATORS = ['=', ':', 'import', 'def ', 'class ', 'for ', 'if ', 're.compile']  
+# Skip code-like lines for entropy
 
 
 def shannon_entropy(s: str) -> float:
