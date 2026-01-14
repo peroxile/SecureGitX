@@ -1,25 +1,25 @@
 {
-    "allowlist": [
-      "example",
-      "test",
-      "dummy",
-      "sample",
-      "placeholder",
-      "mock",
-      "xxxxx",
-      "yyyyy",
-      "zzzzz",
-      "your_key_here",
-      "insert_key_here",
-      "replace_with",
-      "todo",
-      "fixme",
-      "abcdefghijklmnop",
-      "1234567890",
-      "0000000000",
-      "fake",
-      "template",
-      "demo"
-    ],
-    "description": "Terms that indicate non-sensitive/example data"
-  }
+  "allowlist": [
+    "example",
+    "test",
+    "dummy",
+    "sample",
+    "placeholder",
+    "mock",
+    "xxxxx",
+    "yyyyy",
+    "zzzzz",
+    "your_key_here",
+    "insert_key_here",
+    "replace_with",
+    "todo",
+    "fixme",
+    "abcdefghijklmnop",
+    "1234567890",
+    "0000000000",
+    "fake",
+    "template",
+    "demo"
+  ],
+  "description": "Terms that indicate non-sensitive/example data"
+}
