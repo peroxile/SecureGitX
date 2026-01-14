@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
-
 import sys
 import re
 import math
+import json
+import os
 
+# Load allowlist and rules from JSON
+script_dir = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(script_dir, 'allowlist.json'), 'r') as f:
+    ALLOWLIST_DATA = json.load(f)
+ALLOWLIST = ALLOWLIST_DATA['allowlist']
 
-# Simple rules
-SECRET_PATTERNS = [
-    re.compile(r'AKIA[0-9A-Z]{16}'),            # AWS Access Key
-    re.compile(r'sk_live_[0-9a-zA-Z]{24}'),     # Stripe
-    re.compile(r'ghp_[0-9a-zA-Z]{36}'),         # Github token
-]
-
-ALLOWLIST = [
-    "example",
-    "test",
-    "dummy"
-]
+with open(os.path.join(script_dir, 'rules.json'), 'r') as f:
+    RULES_DATA = json.load(f)
+# Compile patterns with names for better reporting
+SECRET_PATTERNS = {name: re.compile(pattern) for name, pattern in RULES_DATA['patterns'].items()}
 
 ENTROPY_THRESHOLD = 4.5
+CODE_INDICATORS = ['=', ':', 'import', 'def ', 'class ', 'for ', 'if ', 're.compile']  # Skip code-like lines for entropy
 
 
 def shannon_entropy(s: str) -> float:
@@ -38,29 +37,54 @@ def is_allowed(line: str) -> bool:
     return any(word in line.lower() for word in ALLOWLIST)
 
 
-def is_secret(line: str) -> bool:
-    for pattern in SECRET_PATTERNS:
+def is_code_like(line: str) -> bool:
+    return any(indicator in line for indicator in CODE_INDICATORS)
+
+
+def detect_secret(line: str) -> str:
+    for name, pattern in SECRET_PATTERNS.items():
         if pattern.search(line):
-            return True
-    return shannon_entropy(line) >= ENTROPY_THRESHOLD
+            return f"Matched pattern: {name}"
+    # Skip entropy for short or code-like lines
+    if len(line) > 20 and not is_code_like(line):
+        ent = shannon_entropy(line)
+        if ent >= ENTROPY_THRESHOLD:
+            return f"High entropy string (entropy: {ent:.2f})"
+    return ""
 
 
 def main() -> int:
-    diff = sys.stdin.read()
-    for raw in diff.splitlines():
+    detections = []
+    current_file = "unknown"
+    diff_line_num = 0  # Track line number in the diff for reference
+
+    for raw in sys.stdin:
+        diff_line_num += 1
+        if raw.startswith('+++ b/'):
+            current_file = raw.split('+++ b/')[1].strip()
+            continue
         if not raw.startswith('+'):
             continue
-        if raw.startswith('+++'):
-            continue
-
         line = raw[1:].strip()
-
         if not line or is_allowed(line):
             continue
+        reason = detect_secret(line)
+        if reason:
+            detections.append({
+                'file': current_file,
+                'diff_line': diff_line_num,
+                'content': line[:100] + '...' if len(line) > 100 else line,  # Truncate long lines
+                'reason': reason
+            })
 
-        if is_secret(line):
-            return 1
-
+    if detections:
+        print("Sensitive content detected:")
+        for det in detections:
+            print(f"- File: {det['file']}, Diff line: {det['diff_line']}")
+            print(f"  Content: {det['content']}")
+            print(f"  Reason: {det['reason']}")
+            print()
+        return 1
     return 0
 
 
