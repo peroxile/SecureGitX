@@ -35,6 +35,9 @@ log_error()   { printf "%b ✗ %s%b\n" "$RED" "$1" "$NC"; }
 log_step()    { printf "%b ▶ %s%b\n" "$CYAN" "$1" "$NC"; }
 separator()   { printf '%s\n' "──────────────────────────────────────────────────"; }
 
+emit() {
+    printf '%s\n' "$1"
+}
 
 # JSON helper
 json_emit() {
@@ -297,6 +300,7 @@ check_user_identity() {
     name=$(git config user.name 2>/dev/null || echo "")
     email=$(git config user.email 2>/dev/null || echo "")
     if [[ -z "$name" ]]; then
+        emit "Git user.name is not configured"
         log_error "Git user.name is not configured!"
         log_info "Set with: git config user.name \"Your Name\""
         log_info "Or globally; git config --global user.name \"Your Name\""
@@ -619,7 +623,7 @@ _build_find_pattern_args() {
         fi
         args+=( -o )
     done
-    unset 'args[-1]'  # Remove last -o
+    unset 'args[-1]' 
     printf '%s ' "${args[@]}"
 }
 
@@ -689,14 +693,20 @@ scan_staged_files() {
     done
 
     local issues=0
+    local mode="${!:-gate}"
 
     # 1. Filename-based checks
     for file in "${staged_files[@]}"; do
         for pattern in "${SCAN_PATTERNS[@]}"; do
             case "$file" in
                 $pattern)
+                    emit "Sensitive file staged: $file"
                     log_warning "Sensitive file staged: $file (matched pattern: $pattern)"
-                    issues=$((issues + 1))
+                    if [[ "$mode" == "gate" ]]; then
+                        return 1
+                    else 
+                        issues=$((issues + 1))
+                    fi
                     ;;
             esac
         done
@@ -862,9 +872,9 @@ show_banner() {
     cat << "EOF"
     
   ____                         _______     __      _   _
- / __|\____ ___ _   _ _ __ ___|   ____( ) |  |__  \ \_/ /
+ / __|\______ _______ ____ ___|   ____( ) |  |__  \ \_/ /
  \___ \ / _ \/ __| | | | '__/ _ \|  _ _ | |  _ _\  \/+\/
-  ___) |  __/ (__| |_| | | |  __/|__| | | |  |___  / /\ \
+  ___) |  __/ (__  |_| | | |  __/|__| | | |  |___  / /\ \
  |____/ \___|\___|\__,_|_|  \___|_____|_|_|______|/_/  \_\
                                         
 EOF
