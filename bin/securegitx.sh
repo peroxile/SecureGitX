@@ -693,43 +693,40 @@ scan_staged_files() {
     done
 
     local issues=0
-    local mode="${!:-gate}"
 
     # 1. Filename-based checks
     for file in "${staged_files[@]}"; do
         for pattern in "${SCAN_PATTERNS[@]}"; do
+        # shellcheck disable=SC2254
             case "$file" in
                 $pattern)
                     emit "Sensitive file staged: $file"
                     log_warning "Sensitive file staged: $file (matched pattern: $pattern)"
-                    if [[ "$mode" == "gate" ]]; then
-                        return 1
-                    else 
                         issues=$((issues + 1))
-                    fi
-                    ;;
             esac
         done
     done
 
-    # 2. Content-based check (single unified diff)
-    if command -v python3 >/dev/null 2>&1; then
-        if [[ ! -f "$PY_ANALYZER" ]]; then
+    # 2. Content-based check (Python analyzer)
+    if command -v python3 >/dev/null 2>&1 && [[ -f "$PY_ANALYZER" ]]; then
+            git diff --cached | python3 "$PY_ANALYZER"
+            py_status=$?
+
+            if [[ $py_status -ne 0 ]]; then
+                log_error "Sensitive content detected in staged changes"
+                issues=$(( issues + py_status ))
+            fi 
+        else 
             log_warning "Python analyzer not found at: $PY_ANALYZER"
-            log_info "Skipping content-based secret detection"
-        elif ! git diff --cached | python3 "$PY_ANALYZER"; then
-            log_error "Sensitive content detected in staged changes"
-            issues=$((issues + 1))
+        fi 
+
+        if [[ $issues -gt 0 ]]; then
+            log_error "Detected $issues security issue(s) in staged files"
+            return 1
         fi
-    fi
 
-    if [[ $issues -gt 0 ]]; then
-        log_error "Detected $issues security issue(s) in staged files"
-        return 1
-    fi
-
-    log_success "All staged files passed security validation"
-    return 0
+        log_success "All staged files passed security validation"
+            return 0
 }
 
 
