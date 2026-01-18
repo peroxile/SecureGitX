@@ -13,8 +13,20 @@ SCRIPT_VERSION="$(git describe --tags --dirty --always 2>/dev/null || echo '0.0.
 CONFIG_FILE=".securegitx_config"
 GITIGNORE_MARKER="# Injected by SecureGitX"
 DEFAULT_SAFE_EMAIL_SUFFIX="@users.noreply.github.com"
-PY_ANALYZER="$(dirname "$0")/../wrappers/securegitx_wrapper.py"
 
+
+if ! PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    log_error "Not inside a Git repository"
+    exit 1
+fi
+
+WRAPPER_DIR="$PROJECT_ROOT/wrappers"
+PY_ANALYZER="$WRAPPER_DIR/securegitx_wrapper.py"
+
+if [[ ! -f "$PY_ANALYZER" ]]; then
+    log_error "Python analyzer missing at: $PY_ANALYZER"
+    exit 1
+fi
 
 # Output Modes
 NON_INTERACTIVE=false
@@ -684,7 +696,7 @@ scan_staged_files() {
 
     if [[ ${#staged_files[@]} -eq 0 ]]; then
         log_warning "No files staged for commit"
-        return 0
+        return 2
     fi
 
     log_info "Staged files: ${#staged_files[@]} file(s)"
@@ -709,12 +721,15 @@ scan_staged_files() {
 
     # 2. Content-based check (Python analyzer)
     if command -v python3 >/dev/null 2>&1 && [[ -f "$PY_ANALYZER" ]]; then
-            git diff --cached | python3 "$PY_ANALYZER"
-            py_status=$?
-
-            if [[ $py_status -ne 0 ]]; then
+            local py_output
+            py_output=$( git diff --cached | python3 "$PY_ANALYZER" || true)
+            if [[ -n "$py_output" ]]; then
+                echo "$py_output"
                 log_error "Sensitive content detected in staged changes"
-                issues=$(( issues + py_status ))
+
+                local py_issues
+                py_issues=$(echo "$py_output" | grep -c '^- File:' )
+                issues=$(( issues + py_issues ))
             fi 
         else 
             log_warning "Python analyzer not found at: $PY_ANALYZER"
@@ -939,10 +954,14 @@ main() {
     if [[ "$hook_mode" == "true" ]]; then
         check_git_repo
         parse_config 2>/dev/null || true
-            if ! scan_staged_files; then
-        exit 1
-            fi
-        exit 0
+
+        scan_staged_files
+        scan_rc=$?
+
+        case "$scan_rc" in
+            0|2) exit 0 ;;
+            *) exit 1 ;;
+        esac
     fi  
     show_banner
 
@@ -987,15 +1006,26 @@ main() {
 
   # Validation & commit
   if [[ -n "$commit_message" ]]; then
-    if ! scan_staged_files; then
-      log_error "Security issues found in staged files"
-      echo ""
-      echo "Fix staged issues (unstage, remove, or add to .gitignore) and retry."
-      json_emit '{"status":"error","reason":"sensitive_staged_files"}' 1
-      exit 1
-    fi
-    separator
-    perform_secure_commit "$commit_message"
+    scan_staged_files
+    scan_rc=$?
+
+    case "$scan_rc" in
+        0) 
+            separator
+            perform_secure_commit "$commit_message"
+            ;;
+        2) 
+            log_info "Nothing to commit"
+            exit 0
+            ;;
+        *)
+            log_error "Security issues found in staged files"
+            echo ""
+            echo "Fix staged issues (unstage, remove, or add to .gitignore) and retry."
+            json_emit '{"status":"error","reason":"sensitive_staged_files"}' 1
+            exit 1
+        ;;
+    esac
   else
     log_success "Security checks complete - repository is clean"
     echo ""
