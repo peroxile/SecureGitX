@@ -17,7 +17,11 @@ with open(os.path.join(script_dir, 'rules.json'), 'r') as f:
 SECRET_PATTERNS = {name: re.compile(pattern) for name, pattern in RULES_DATA['patterns'].items()}
 
 ENTROPY_THRESHOLD = 4.5
-CODE_INDICATORS = ['=', ':', 'import', 'def ', 'class ', 'for ', 'if ', 're.compile']  
+CODE_INDICATORS = [
+    '=', ':', 'import', 'def ', 'class ', 'for ', 'if ', 're.compile',
+    '|', '$', 'git ', 'python3 ', './', 'bash', 'sh '
+]
+
 # Skip code-like lines for entropy
 
 
@@ -85,7 +89,7 @@ def main() -> int:
             print(f"  Content: {det['content']}")
             print(f"  Reason: {det['reason']}")
             print()
-        return 1
+        return len(detections)
     return 0
 
 
