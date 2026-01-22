@@ -9,10 +9,34 @@ set -euo pipefail
 # set -x
 
 # --------- Metadata & Defaults ----------
-SCRIPT_VERSION="$(git describe --tags --dirty --always 2>/dev/null || echo '0.0.0-dev')"
+SCRIPT_VERSION="$(
+  git describe --tags --abbrev=0 --exact-match 2>/dev/null \
+  || echo '1.2.0'
+)" 
+
 CONFIG_FILE=".securegitx_config"
 GITIGNORE_MARKER="# Injected by SecureGitX"
 DEFAULT_SAFE_EMAIL_SUFFIX="@users.noreply.github.com"
+
+# --------- Unicode / Terminal Capability ----------
+support_unicode() {
+  [[ "${LANG:-}" =~ UTF-8 ]] || [[ "${LC_ALL:-}" =~ UTF-8 ]]
+}
+
+if support_unicode && test -t 1; then
+  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
+  OK="✓"; WARN="⚠"; ERR="✗"; INFO="ℹ"; STEP="▶"
+else
+  RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; NC=''
+  OK="[OK]"; WARN="[WARN]"; ERR="[ERR]"; INFO="[INFO]"; STEP=">"
+fi
+
+log_info()    { printf "%b %s %s%b\n" "$BLUE" "$INFO" "$1" "$NC"; }
+log_success() { printf "%b %s %s%b\n" "$GREEN" "$OK" "$1" "$NC"; }
+log_warning() { printf "%b %s %s%b\n" "$YELLOW" "$WARN" "$1" "$NC"; }
+log_error()   { printf "%b %s %s%b\n" "$RED" "$ERR" "$1" "$NC"; }
+log_step()    { printf "%b %s %s%b\n" "$CYAN" "$STEP" "$1" "$NC"; }
+separator()   { printf '%s\n' "──────────────────────────────────────────────────"; }
 
 
 if ! PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
@@ -28,37 +52,6 @@ if [[ ! -f "$PY_ANALYZER" ]]; then
     exit 1
 fi
 
-# Output Modes
-NON_INTERACTIVE=false
-JSON_OUTPUT=false
-AUTO_YES=false 
-
-# Colors (if terminal supports)
-if test -t 1; then
-  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
-else
-  RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; NC=''
-fi
-
-log_info()    { printf "%b ℹ %s%b\n" "$BLUE" "$1" "$NC"; }
-log_success() { printf "%b ✓ %s%b\n" "$GREEN" "$1" "$NC"; }
-log_warning() { printf "%b ⚠ %s%b\n" "$YELLOW" "$1" "$NC"; }
-log_error()   { printf "%b ✗ %s%b\n" "$RED" "$1" "$NC"; }
-log_step()    { printf "%b ▶ %s%b\n" "$CYAN" "$1" "$NC"; }
-separator()   { printf '%s\n' "──────────────────────────────────────────────────"; }
-
-emit() {
-    printf '%s\n' "$1"
-}
-
-# JSON helper
-json_emit() {
-    if [[ "$JSON_OUTPUT" = "true" ]]; then
-        # Simple JSON object, caller provides pre-escaped values
-        printf '%s\n' "$1"
-        exit "${2:-0}"
-    fi
-}
 
 # ---------- Defaults that config may override ----------
 SAFE_EMAIL=""
@@ -97,20 +90,6 @@ SCAN_PATTERNS=(
   "*.contract"
   ".chain/*"
 )
-EXCLUDE_DIRS=(
-  ".git"
-  "node_modules"
-  "vendor"
-  "venv"
-  ".venv"
-  "dist"
-  "build"
-  "__pycache__"
-  "ganache-db"
-  "hardhat-network"
-  ".idea"
-  ".vscode"
-)
 
 
 # ---------- Utility functions ----------
@@ -130,9 +109,6 @@ _abs_path () {
 confirm() {
     # Returns 0 if confirmed 
     local prompt="${1:-Confirm? [y/N]: }"
-    if [[ "$NON_INTERACTIVE" == "true" || "$AUTO_YES" == "true" ]]; then
-        return 0
-    fi
     printf "%s" "$prompt"
     local ans 
     read -r ans || ans="N"
@@ -152,75 +128,55 @@ safe_trim_quotes() {
 
 # ---------- Config parsing (safe, no arbitrary code execution) ----------
 parse_config() {
-    # If config doesn't exist, return 1
-    [[ -f "$CONFIG_FILE" ]] || return 1
+  [[ -f "$CONFIG_FILE" ]] || return 1
 
-    # Read line by line. Accept simple KEY="value" and array SCAN_PATTERNS=( ... )
-    local line key val 
-    local in_array_name=""
-    local array_buf=() 
+  local line key val
+  local in_array=""
+  local buf=()
 
-    while IFS= read -r line || [[ -n "$line" ]]; do 
-        # strip leading/trailing whitespace 
-        line="${line#"${line%%[![:space:]]*}"}"
-        line="${line%"${line##*[![:space:]]}"}"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "$line" || "$line" =~ ^# ]] && continue
 
-        # Skip empty and comment lines 
-        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\([[:space:]]*$ ]]; then
-            in_array_name="${BASH_REMATCH[1]}"
-            array_buf=()
-            continue
-        fi
+    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\([[:space:]]*$ ]]; then
+      in_array="${BASH_REMATCH[1]}"
+      buf=()
+      continue
+    fi
 
-        # detect array end 
-        if [[ -n "$in_array_name" ]]; then
-            if [[ "$line" =~ ^\)[[:space:]]*$ ]]; then
-                # assign array
-                case "$in_array_name" in 
-                    SCAN_PATTERNS) SCAN_PATTERNS=("${array_buf[@]}") ;;
-                    EXCLUDE_DIRS) EXCLUDE_DIRS=("${array_buf[@]}") ;;
-                    *) 
-                esac
-                in_array_name=""
-                array_buf=()
-                continue
-            fi 
-            # collect array item lines, accepts lines like "value" or 'value' or value
-            if [[ "$line" =~ ^[[:space:]]*\"(.+)\"[[:space:]]*$ || "$line" =~ ^[[:space:]]*\'(.+)\'[[:space:]]*$ ]]; then
-                array_buf+=("${BASH_REMATCH[1]}")
-            else
-                # bareword
-               array_buf+=("$line")
-            fi
-            continue
-        fi
+    # detect array end 
+    if [[ -n "$in_array" ]]; then
+      if [[ "$line" =~ ^\)[[:space:]]*$ ]]; then
+          # assign array
+        case "$in_array" in
+          SCAN_PATTERNS) SCAN_PATTERNS=("${buf[@]}") ;;
+        esac
+        in_array=""
+        buf=()
+        continue
+      fi
+      # collect array item lines, accepts only quoted values.
+      if [[ "$line" =~ ^\"(.+)\"$ || "$line" =~ ^\'(.+)\'$ ]]; then
+        buf+=("${BASH_REMATCH[1]}")
+      fi
+      continue
+    fi
 
-        # key=value lines
-      if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.+)$ ]]; then
-        key="${BASH_REMATCH[1]}"
-        val="${BASH_REMATCH[2]}"
-       # strip any trailing comment
-        val="${val%%#*}"
-      # trim spaces
-       val="${val%"${val##*[![:space:]]}"}"
-       val="${val#"${val%%[![:space:]]*}"}"
-      # strip quotes
+    # key=value lines
+    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      val="${BASH_REMATCH[2]%%#*}"
+    # strip any trailing comment
       val="$(safe_trim_quotes "$val")"
-
-     case "$key" in 
+      case "$key" in
         SAFE_EMAIL) SAFE_EMAIL="$val" ;;
         ENFORCE_SAFE_EMAIL) ENFORCE_SAFE_EMAIL="$val" ;;
         AUTO_GITIGNORE) AUTO_GITIGNORE="$val" ;;
-        *) ;; # ignore unknown keys 
       esac
-      continue
-     fi
-
-    # ignore any other lines
-    done < "$CONFIG_FILE"
-    return 0
+    fi
+  done < "$CONFIG_FILE"
 }
-
 
 create_default_config() {
     separator
@@ -299,7 +255,6 @@ log_success "Created default configuration: $CONFIG_FILE"
 check_git_repo() {
     if ! git rev-parse --git-dir >/dev/null 2>&1; then
         log_error "Not a git repository. Run 'git init' first."
-        json_emit '{"error": "not_git_repo"}' 1
         exit 1 
     fi
     log_success "Git repository detected"
@@ -312,18 +267,15 @@ check_user_identity() {
     name=$(git config user.name 2>/dev/null || echo "")
     email=$(git config user.email 2>/dev/null || echo "")
     if [[ -z "$name" ]]; then
-        emit "Git user.name is not configured"
-        log_error "Git user.name is not configured!"
+        log_error " user.name is not configured"
         log_info "Set with: git config user.name \"Your Name\""
         log_info "Or globally; git config --global user.name \"Your Name\""
-        json_emit '{"error":"missing_user_name"}' 1
         exit 1
     fi
     if  [[ -z "$email" ]]; then
         log_error "Git user.email is not configured"
         log_info "Set with: git config user.email \"you@example.com\""
         log_info "Or globally: git config --global user.email \"you@example.com\""
-        json_emit '{"error":"missing_user_email"}' 1
         exit 1
     fi
     log_success "Identity verified: $name <$email>"
@@ -367,7 +319,6 @@ check_email_safety() {
     # Check for detached HEAD
     if ! git symbolic-ref -q HEAD > /dev/null 2>&1; then  
         log_error "Detached HEAD state detected. Checkout a branch first."
-        json_emit '{"error": "detached_head"}' 1
         exit 1
     fi 
     local current_branch
@@ -559,6 +510,7 @@ build/
 target/
 node_modules/
 vendor/
+wrapper
 
 # Additional security patterns
 .secrets/
@@ -625,58 +577,24 @@ ensure_gitignore() {
 
 # PHASE 2: SCANNING - Security Repository Scan
 #build a find expression combining patterns
-_build_find_pattern_args() {
-    local args=()
-    for pat in "${SCAN_PATTERNS[@]}"; do
-        if [[ "$pat" == *"/"* ]]; then
-            args+=( -path "./$pat" )
-        else
-            args+=( -name "$pat" )
-        fi
-        args+=( -o )
-    done
-    unset 'args[-1]' 
-    printf '%s ' "${args[@]}"
-}
 
 scan_sensitive_files() {
     log_step "PHASE 2: SCANNING - Security Repository Scan"
     separator
-    log_info "Scanning  repository for sensitive files..."
-
-    # Build exclude prune clause once
-    local prune_clause=""
-    for dir in "${EXCLUDE_DIRS[@]}"; do 
-        # ignore empty entries 
-        [[ -n "$dir" ]] || continue
-        prune_clause="$prune_clause -path './$dir' -prune -o"
-    done
-
-    # Build combined name expressions
-    local pattern_args
-    pattern_args=$(_build_find_pattern_args)
-    found_list=$(find . "$prune_clause" -type f \( $pattern_args \) -print 2>/dev/null || true)
-
+    log_info "Scanning tracked files for sensitive patterns..."
 
     local found_issues=0
-    #   Check which of the found files are tracked
-    if [[ -n "$found_list" ]]; then
-        # For large repos, it's faster to use git ls-files to check tracked files
-        # Put tracked files into hashset for 0(1) membership testing
-        declare -A tracked_map
-        while IFS= read -r f; do 
-            tracked_map["$f"]=1
-        done < <(git ls-files -z | tr '\0' '\n' 2>/dev/null || true)
 
-        while IFS= read -r file; do
-            # Normalize path (remove leading ./ if present)
-            local rel="${file#./}"
-            if [[ -n "${tracked_map[$rel]:-}" ]]; then
-                log_warning "Tracked sensitive file: $rel"
-                found_issues=$((found_issues + 1))
-            fi 
-        done <<< "$found_list"
-    fi
+    while IFS= read -r file; do
+        for pattern in "${SCAN_PATTERNS[@]}"; do
+            case "$file" in
+                $pattern)
+                    log_warning "Tracked sensitive file: $file"
+                    found_issues=$((found_issues + 1))
+                    ;;
+            esac
+        done
+    done < <(git ls-files)
 
     if [[ $found_issues -gt 0 ]]; then
         log_error "Found $found_issues tracked sensitive file(s)"
@@ -686,6 +604,7 @@ scan_sensitive_files() {
     log_success "No sensitive tracked files detected in repository"
     return 0
 }
+
 
 scan_staged_files() {
     log_step "PHASE 3: VALIDATION - Pre-Commit Security Check"
@@ -712,7 +631,6 @@ scan_staged_files() {
         # shellcheck disable=SC2254
             case "$file" in
                 $pattern)
-                    emit "Sensitive file staged: $file"
                     log_warning "Sensitive file staged: $file (matched pattern: $pattern)"
                         issues=$((issues + 1))
             esac
@@ -769,10 +687,8 @@ perform_secure_commit() {
         git log -1 --oneline || true
         echo ""
         log_success "SecureGitX workflow complete - All good!"
-        json_emit "{\"status\":\"ok\",\"action\":\"commit\",\"message\":\"Commit successful\"}" 0
     else 
         log_error "Commit failed" 
-        json_emit "{\"status\":\"error\",\"action\":\"commit\",\"message\":\"Commit failed\"}" 1
         exit 1
     fi
 }
@@ -811,7 +727,7 @@ install_hook() {
     # If hook doesn't exist, create
     if [[ ! -f "$hook_path" ]]; then
         install_hook_file "$hook_path" "$script_path"
-        log_success "Pre-commit hook replaced with SecureGitX version"
+        log_success "Pre-commit hook installed"
     return 0
     fi 
 
@@ -861,7 +777,7 @@ uninstall_hook() {
         log_warning "Pre-commit hook exists but was not installed by SecureGitX"
         if confirm "Remove/replace it anyway? [y/N]: "; then
             local backup2
-            backup2="${hook_path}.manual_backup. $(date +%s)"
+            backup2="${hook_path}.manual_backup.$(date +%s)"
             mv "$hook_path" "$backup2"
             log_success "Existing hook moved to $backup2 and removed"
         else
@@ -869,19 +785,35 @@ uninstall_hook() {
     fi
     fi
 }
-    # Trap and cleanup
-    on_error() {
-        local rc=$?
-        log_error "An unexpected error occurred (exit code: $rc)"
-        json_emit "{\"status\":\"error\",\"message\":\"unexpected_error\",\"code\":$rc}" 1
-        exit "$rc"
-}
-trap on_error ERR
 
 
 ## Main Workflow 
 show_banner() {
+
+    if support_unicode && test -t 1; then
+        # Unicode version with colors
+
+    printf "%b \n" "${CYAN}"
     cat << "EOF"
+    
+ ███████╗███████╗ ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██╗████████╗██╗  ██╗
+ ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██╔════╝██╔════╝ ██║╚══██╔══╝╚██╗██╔╝
+ ███████╗█████╗  ██║     ██║   ██║██████╔╝█████╗  ██║  ███╗██║   ██║    ╚███╔╝ 
+ ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██╔══╝  ██║   ██║██║   ██║    ██╔██╗ 
+ ███████║███████╗╚██████╗╚██████╔╝██║  ██║███████╗╚██████╔╝██║   ██║   ██╔╝ ██╗
+ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝   ╚═╝   ╚═╝  ╚═╝
+                                        
+EOF
+
+echo "  ╭─────────────────────────────────────────╮"
+printf "  │ %b │\n" "${CYAN}SecureGitX${NC} ${YELLOW}v${SCRIPT_VERSION}${NC}                      "
+printf "  │ %b │\n" "${CYAN}Auth${NC} → ${CYAN}Scan${NC} → ${CYAN}Secure Commit${NC}            "
+echo "  ╰─────────────────────────────────────────╯"
+
+
+    else 
+        # ASCII fallback version 
+            cat << "EOF"
     
   ____                         _______     __      _   _
  / __|\______ _______ ____ ___|   ____( ) |  |__  \ \_/ /
@@ -893,6 +825,8 @@ EOF
     echo "  Git Security and Safety Automation v${SCRIPT_VERSION}"
     echo " Workflow: Auth => Scan => Validate => Secure Commit"
     separator
+    fi
+
 }
 
 # ---------- Argument parsing ----------
@@ -905,9 +839,6 @@ Options:
   --install            Install pre-commit hook
   --uninstall          Uninstall pre-commit hook
   --hook-mode          Run in hook-mode (used by installed hook)
-  --non-interactive    Non-interactive mode (CI)
-  --yes                Auto-confirm prompts
-  --json               Output machine-readable JSON for CI
   --help, -h           Show this help message
     Examples:
 $0 # Setup and scan only
@@ -928,10 +859,7 @@ main() {
             --safe-email) force_safe_email=true shift ;;
             --install) install_hook; exit 0 ;;
             --uninstall) uninstall_hook; exit 0 ;;
-            --hook-mode) hook_mode=true; NON_INTERACTIVE=true; shift ;;
-            --non-interactive) NON_INTERACTIVE=true; shift ;;
-            --yes) AUTO_YES=true; shift ;;
-            --json) JSON_OUTPUT=true; shift ;;
+            --hook-mode) hook_mode=true; shift ;;
             --help|-h) _usage; exit 0 ;;
             --) shift; break ;;
             -*)
@@ -952,7 +880,7 @@ main() {
     done
     # Hook mode: minimal output, only scan staged files
     if [[ "$hook_mode" == "true" ]]; then
-        check_git_repo
+        ENFORCE_SAFE_EMAIL=false
         parse_config 2>/dev/null || true
 
         scan_staged_files
@@ -998,7 +926,6 @@ main() {
         echo " 1. Add files to .gitignore"
         echo "  2. Remove sensitive data from files"
         echo "  3. Clean history (git-filter-repo / BFG)"
-        json_emit '{"status":"error","reason":"sensitive_files_detected"}' 1
         exit 1
     fi
 
@@ -1022,7 +949,6 @@ main() {
             log_error "Security issues found in staged files"
             echo ""
             echo "Fix staged issues (unstage, remove, or add to .gitignore) and retry."
-            json_emit '{"status":"error","reason":"sensitive_staged_files"}' 1
             exit 1
         ;;
     esac
