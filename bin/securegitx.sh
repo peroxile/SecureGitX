@@ -55,7 +55,7 @@ fi
 
 # ---------- Defaults that config may override ----------
 SAFE_EMAIL=""
-ENFORCE_SAFE_EMAIL=false
+ENFORCE_SAFE_EMAIL=true
 AUTO_GITIGNORE=true
 SCAN_PATTERNS=(
   "*.env"
@@ -192,7 +192,7 @@ create_default_config() {
 # SecureGitX Configuration (v${SCRIPT_VERSION})
 # This file is automatically ignored by git
 SAFE_EMAIL="$SAFE_EMAIL"
-ENFORCE_SAFE_EMAIL=false 
+ENFORCE_SAFE_EMAIL=true
 AUTO_GITIGNORE=true
 
 SCAN_PATTERNS=(
@@ -300,17 +300,15 @@ check_email_safety() {
     fi
 
     if [[ "$ENFORCE_SAFE_EMAIL" == "true" ]] || [[ "$force_prompt" == "true" ]]; then
-        log_warning "Personal email detected: $current_email"
-        printf "\nSafety recommendation: Using a personal email exposes it in git history. \nUsing this project's no-reply suggestion: %s\n\n"  "$SAFE_EMAIL"
-        if confirm "Switch to safe email now? [y/N]: "; then
-            git config user.email "$SAFE_EMAIL"
-            log_success "Switched to safe email: $SAFE_EMAIL"
-        else
-            log_info "Kept original email: $current_email"
-        fi
-    else
-        log_info "Email: $current_email"
-    fi
+    printf "\nRecommendation: Use GitHub no-reply email to protect your identity.\n"
+    printf "Steps:\n"
+    printf "  1. Go to GitHub → Settings → Emails → 'Keep my email address private'\n"
+    printf "  2. Copy your GitHub no-reply email (username@users.noreply.github.com)\n"
+    printf "  3. Set locally with: git config user.email \"username@users.noreply.github.com\"\n\n"
+else
+    log_info "Email: $current_email"
+fi
+
 }
 
  check_branch_state() {
