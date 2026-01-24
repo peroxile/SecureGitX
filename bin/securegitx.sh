@@ -821,7 +821,7 @@ echo "  ╰───────────────────────
                                         
 EOF
     echo "  Git Security and Safety Automation v${SCRIPT_VERSION}"
-    echo " Workflow: Auth => Scan => Validate => Secure Commit"
+    echo " Workflow: Auth => Scan => Secure Commit"
     separator
     fi
 
@@ -833,7 +833,6 @@ _usage() {
 Usage: $0 [OPTIONS] [commit-message]
 
 Options:
-  --safe-email         Prompt/force switching to safe GitHub no-reply email
   --install            Install pre-commit hook
   --uninstall          Uninstall pre-commit hook
   --hook-mode          Run in hook-mode (used by installed hook)
@@ -854,7 +853,6 @@ main() {
     # parse flags 
     while [[ $# -gt 0 ]]; do 
         case $1 in 
-            --safe-email) force_safe_email=true shift ;;
             --install) install_hook; exit 0 ;;
             --uninstall) uninstall_hook; exit 0 ;;
             --hook-mode) hook_mode=true; shift ;;
