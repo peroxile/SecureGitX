@@ -1,24 +1,33 @@
 #!/usr/bin/env bats
 
-load "${BATS_TEST_DIRNAME}/helpers/helper.bash"
+load helpers/helper.bash
 
-@test "Creates .gitignore with SecureGitX marker" {
-  git config --local user.name "Tester"
-  git config --local user.email "tester@users.noreply.github.com"
-
-  run "${BATS_TEST_DIRNAME}/../bin/securegitx.sh"
-
-  [[ -f ".gitignore" ]]
-  grep -q "Injected by SecureGitX" .gitignore
+setup() {
+  setup_repo
 }
 
-@test "Appends config file to existing .gitignore" {
-  git config --local user.name "Tester"
-  git config --local user.email "tester@users.noreply.github.com"
+teardown() {
+  teardown_repo
+}
 
-  echo "*.log" > .gitignore
+@test ".gitignore is created automatically" {
+  run ./bin/securegitx.sh
+  [ "$status" -eq 0 ]
+  [ -f .gitignore ]
+}
 
-  run "${BATS_TEST_DIRNAME}/../bin/securegitx.sh"
+@test "python project generates python-specific ignores" {
+  touch requirements.txt
 
+  run ./bin/securegitx.sh
+
+  [ "$status" -eq 0 ]
+  grep -q "__pycache__/" .gitignore
+}
+
+@test "existing .gitignore is respected and config is added" {
+  echo "node_modules/" > .gitignore
+  run ./bin/securegitx.sh
+  [ "$status" -eq 0 ]
   grep -q ".securegitx_config" .gitignore
 }

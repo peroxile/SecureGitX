@@ -1,28 +1,46 @@
 #!/usr/bin/env bats
 
-load "${BATS_TEST_DIRNAME}/helpers/helper.bash"
+load helpers/helper.bash
 
-@test "Detects tracked sensitive file" {
-  git config --local user.name "Tester"
-  git config --local user.email "tester@users.noreply.github.com"
+setup() {
+  setup_repo
+}
 
-  echo "secret" > .env
+teardown() {
+  teardown_repo
+}
+
+@test "blocks tracked sensitive filenames" {
+  echo "SECRET=123" > .env
   git add .env
+  git commit -m "add env" -q
 
-  run "${BATS_TEST_DIRNAME}/../bin/securegitx.sh" "msg"
-
-  [[ "$status" -ne 0 ]]
+  run ./bin/securegitx.sh
+  [ "$status" -ne 0 ]
   [[ "$output" =~ "Tracked sensitive file" ]]
 }
 
-@test "Passes when no sensitive files tracked" {
-  git config --local user.name "Tester"
-  git config --local user.email "tester@users.noreply.github.com"
+@test "blocks staged sensitive content" {
+  echo "SECRET=123" > secret.txt
+  git add secret.txt
+  run bin/securegitx.sh "Test commit"
+  [ "$status" -ne 0 ]
+  [[ "$output" =~ "Sensitive file staged: secret.txt" ]]
+}
 
-  echo "safe" > readme.md
-  git add readme.md
+@test "does not flag documentation text as secret (entropy false-positive guard)" {
+  echo 'printf "Copy your GitHub no-reply email (username@users.noreply.github.com)"' > readme.sh
+  git add readme.sh
 
-  run "${BATS_TEST_DIRNAME}/../bin/securegitx.sh" "msg"
+  run ./bin/securegitx.sh "doc commit"
+  [ "$status" -eq 0 ]
+}
 
-  [[ "$status" -eq 0 ]]
+@test "allows clean staged files to commit" {
+  echo "print('hello')" > ok.py
+  git add ok.py
+
+  run ./bin/securegitx.sh "clean commit"
+  [ "$status" -eq 0 ]
+  git log -1 --oneline | grep -q "clean commit"
 }

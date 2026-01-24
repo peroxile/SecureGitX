@@ -1,31 +1,50 @@
 #!/usr/bin/env bats
 
-load "${BATS_TEST_DIRNAME}/helpers/helper.bash"
+load helpers/helper.bash
 
-@test "Fails if git user.name is missing" {
-  git config --local user.email "test@example.com"
-
-  run "${BATS_TEST_DIRNAME}/../bin/securegitx.sh" "msg"
-
-  [[ "$status" -ne 0 ]]
+setup() {
+  setup_repo
 }
 
-@test "Fails if git user.email is missing" {
-  git config --local user.name "Tester"
-
-  run "${BATS_TEST_DIRNAME}/../bin/securegitx.sh" "msg"
-
-  [[ "$status" -ne 0 ]]
+teardown() {
+  teardown_repo
 }
 
-@test "Passes with valid identity and staged file" {
-  git config --local user.name "Tester"
-  git config --local user.email "tester@users.noreply.github.com"
+@test "warns when git user.name is missing" {
+  run bin/securegitx.sh
+  [ "$status" -ne 0 ]
+  [[ "$output" =~ user.name ]]
+}
 
-  echo "ok" > file.txt
-  git add file.txt
+@test "warns when git user.email is missing" {
+  git config user.name "Test User" 
+  git config --unset user.email || true
 
-  run "${BATS_TEST_DIRNAME}/../bin/securegitx.sh" "secure commit"
+  run ./bin/securegitx.sh
 
-  [[ "$status" -eq 0 ]]
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == "Git user.email is not configured" ]]
+}
+
+@test "recommends GitHub no-reply email when enforced" {
+  git config user.name "Test User"
+  git config user.email "me@example.com"
+
+  echo 'ENFORCE_SAFE_EMAIL=true' > .securegitx_config
+
+  run ./bin/securegitx.sh --safe-email
+
+
+  [[ "$output" =~ "Recommendation: Use GitHub no-reply email" ]]
+}
+
+@test "accepts GitHub no-reply email without warning" {
+  git config user.name "Test User"
+  git config user.email "user@users.noreply.github.com"
+
+  run ./bin/securegitx.sh
+  
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ "Email safety protected" ]]
 }
