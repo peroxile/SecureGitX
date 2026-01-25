@@ -328,29 +328,27 @@ fi
 # Phase 2: SCANNING - Repository Security Scan
 
 detect_project_type() {
-    local project_type="generic"
+  local project_type="generic"
 
-    if [[ -f "package.json" ]];then project_type="node"; fi 
-    if [[ -f "requirements.txt" || -f "setup.py" ]] || [[ -f "pyproject.toml" ]]; then project_type="python"; fi
-    if [[ -f "go.mod" ]]; then project_type="go"; fi
-    if [[ -f "Cargo.toml" ]]; then project_type="rust"; fi
-    if [[ -f "pom.xml" ||  -f "build.gradle" ]]; then  project_type="java"; fi
-    if [[ -f "composer.json" ]]; then  project_type="php"; fi
+  if [[ -f "package.json" || -f "tsconfig.json" ]]; then project_type="node"; fi
+  if [[ -f "requirements.txt" || -f "setup.py" || -f "pyproject.toml" ]]; then project_type="python"; fi
+  if [[ -f "go.mod" ]]; then project_type="go"; fi
+  if [[ -f "Cargo.toml" ]]; then project_type="rust"; fi
+  if [[ -f "pom.xml" || -f "build.gradle" ]]; then project_type="java"; fi
+  if [[ -f "composer.json" ]]; then project_type="php"; fi
 
-# If still generic, inspect some tracked file extensions 
-    if [[ "$project_type" == "generic" ]]; then  
-      if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-            local counts
-        # count top extensions among tracked files (limit scanning) 
-        counts=$(git ls-files | awk -F. '/\./ {print $NF}' | sort | uniq -c | sort -rn | head -10 || true)
-        if echo "$counts" | grep -q '^ *[0-9]\+ .*py'; then project_type="python"; fi
-        if echo "$counts" | grep -q '^ *[0-9]\+ .*\\(js\\|ts\\|jsx\\)'; then project_type="node"; fi
-        if echo "$counts" | grep -q '^ *[0-9]\+ .*go'; then project_type="go"; fi 
-        if echo "$counts" | grep -q '^ *[0-9]\+ .*rs'; then project_type="rust"; fi
-      fi 
+  if [[ "$project_type" == "generic" ]]; then
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      local counts
+      counts=$(git ls-files | awk -F. 'NF>1 {print tolower($NF)}' | sort | uniq -c | sort -rn | head -20 || true)
+      if echo "$counts" | grep -q ' py$'; then project_type="python"; fi
+      if echo "$counts" | grep -qiE ' (js|ts|jsx|tsx)$'; then project_type="node"; fi
+      if echo "$counts" | grep -q ' go$'; then project_type="go"; fi
+      if echo "$counts" | grep -q ' rs$'; then project_type="rust"; fi
     fi
+  fi
 
-    printf '%s' "$project_type"
+  printf '%s' "$project_type"
 }
 
 get_gitignore_template() {
