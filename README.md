@@ -57,7 +57,14 @@ git commit -m "feat: add feature"  # SecureGitX runs automatically!
 
 # Remove hook:
 securegitx --uninstall
+
+# Skip hook: 
+git commit -m "your message" --no-verify
+
 ```
+
+### Sample 
+![Diagram](assets/sample.png)
 
 <div style="border-left:4px solid #0084ff; padding:8px; background:#fff3;">
 <strong>Note:</strong> Wrapper folder must be moved to the project Directory to ensure secrets detection.
