@@ -12,13 +12,14 @@ setup_repo() {
 
   cp "$PROJECT_ROOT/wrappers/securegitx_wrapper.py" wrappers/
   cp "$PROJECT_ROOT/bin/securegitx.sh" bin/
+  chmod +x bin/securegitx.sh
 
   git config --local --unset user.name 2>/dev/null || true
   git config --local --unset user.email 2>/dev/null || true
 
-  chmod +x bin/securegitx.sh
 }
 
 teardown_repo() {
+  cd "$PROJECT_ROOT" || exit 1
   rm -rf "$TMP_REPO"
 }
