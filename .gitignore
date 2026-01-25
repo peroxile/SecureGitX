@@ -1,14 +1,2 @@
-# Default ignores
-*.log
-*.db
-*.sqlite
-*.env
-node_modules/
-__pycache__/
-secrets/
-keys/
-config.json
-bats-core
-
 # SecureGitX
 .securegitx_config
