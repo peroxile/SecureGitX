@@ -49,8 +49,20 @@ PY_ANALYZER="$WRAPPER_DIR/securegitx_wrapper.py"
 
 if [[ ! -f "$PY_ANALYZER" ]]; then
     log_error "Python analyzer missing at: $PY_ANALYZER"
-    exit 1
+    echo "Downloading wrapper folder..."
+    mkdir -p "$WRAPPER_DIR"
+    curl -L https://github.com/peroxile/SecureGitX/archive/refs/heads/main.zip -o /tmp/sgx.zip
+    unzip -q /tmp/sgx.zip -d /tmp
+    # Move only the wrappers folders into project
+    mv /tmp/SecureGitX-main/wrappers/* "$WRAPPER_DIR"/
+    rm -rf /tmp/SecureGitX-main /tmp/sgx.zip
 fi
+
+# Verify after download 
+if [[ ! -f "$PY_ANALYZER" ]]; then
+    log_error "Failed to fetch Python wrapper at $PY_ANALYZER"
+    exit 1
+fi 
 
 
 # ---------- Defaults that config may override ----------
@@ -370,6 +382,7 @@ Thumbs.db
 *.swo
 *.swn
 .project
+wrappers
 .settings/
 *.sublime-*
 # SecureGitX configuration
@@ -506,7 +519,6 @@ build/
 target/
 node_modules/
 vendor/
-wrapper
 
 # Additional security patterns
 .secrets/
@@ -802,7 +814,7 @@ show_banner() {
 EOF
 
 echo "  ╭─────────────────────────────────────────╮"
-printf "  │ %b │\n" "${CYAN}SecureGitX${NC} ${YELLOW}v${SCRIPT_VERSION}${NC}                      "
+printf "  │ %b │\n" "${CYAN}SecureGitX${NC} ${YELLOW}v${SCRIPT_VERSION#v}${NC}                      "
 printf "  │ %b │\n" "${CYAN}Auth${NC} → ${CYAN}Scan${NC} → ${CYAN}Secure Commit${NC}            "
 echo "  ╰─────────────────────────────────────────╯"
 
