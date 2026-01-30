@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
-##################
+# Copyright (C) 2025 Peroxile
+# Author: Peroxile <https://github.com/peroxile>
+# Licensed under the Apache License, Version 2.0
+
 # SecureGitX - Secure Git workflow automation 
 # Workflow: Auth => Scan => Secure Commit
-##################
 
 set -euo pipefail
 # set -x
