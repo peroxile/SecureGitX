@@ -1,0 +1,384 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "id": "SGX001",
+      "name": "password_in_url",
+      "description": "Credentials embedded in a database or service connection URL",
+      "pattern": "(postgres(?:ql)?|mysql|redis|mongodb|sqlserver|mariadb|oracle)://[^:\\s\"']+:[^@\\s\"']+@",
+      "type": "content",
+      "severity": "critical",
+      "tags": [
+        "database",
+        "credentials",
+        "url"
+      ],
+      "enabled": true,
+      "case_sensitive": false,
+      "examples": [
+        "postgres://admin:P@ssw0rd123!@db.internal.example:5432/app_db",
+        "mysql://app_user:9fK3LmQ2!x@127.0.0.1:3306/production",
+        "redis://cache_user:pA55w0rd!@redis.internal.example:6379/0",
+        "mongodb://root:R00tP@ss!@mongo.local.example:27017/admin"
+      ],
+      "non_examples": [
+        "postgres://localhost:5432/mydb",
+        "redis://127.0.0.1:6379"
+      ],
+      "remediation": "Move connection strings to environment variables. Never hardcode credentials in URLs."
+    },
+    {
+      "id": "SGX002",
+      "name": "database_url",
+      "description": "Database connection URL with embedded credentials (generic form)",
+      "pattern": "(sqlserver|postgresql|jdbc:[a-z]+)://[^:\\s\"']+:[^@\\s\"']+@",
+      "type": "content",
+      "severity": "critical",
+      "tags": [
+        "database",
+        "credentials",
+        "url"
+      ],
+      "enabled": true,
+      "case_sensitive": false,
+      "examples": [
+        "sqlserver://sa:Str0ng!Pass@db.example.internal:1433/master",
+        "postgresql://svc_user:X9LmQ2K!7P@10.0.0.12:5432/service_db"
+      ],
+      "non_examples": [
+        "postgresql://localhost/mydb"
+      ],
+      "remediation": "Use DATABASE_URL environment variable or a secrets manager."
+    },
+    {
+      "id": "SGX003",
+      "name": "aws_access_key_id",
+      "description": "AWS access key ID \u2014 always 20 uppercase alphanumeric characters starting with AKIA",
+      "pattern": "AKIA[0-9A-Z]{16}",
+      "type": "content",
+      "severity": "critical",
+      "tags": [
+        "aws",
+        "cloud",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "AKIA[REDACTED_FOR_DOCS]T4VA",
+        "AKIA[REDACTED_FOR_DOCS]T4W"
+      ],
+      "non_examples": [
+        "AKIAIOSFODNN7EXAMPLE"
+      ],
+      "remediation": "Rotate the key immediately via AWS IAM. Use IAM roles or environment variables."
+    },
+    {
+      "id": "SGX004",
+      "name": "aws_secret_access_key",
+      "description": "AWS secret access key \u2014 40-character base64-like string near an AWS keyword",
+      "pattern": "(?i)aws[_\\s-]?secret[_\\s-]?(?:access[_\\s-]?)?key[\"'\\s]*[=:][\"'\\s]*[A-Za-z0-9/+]{40}",
+      "type": "content",
+      "severity": "critical",
+      "tags": [
+        "aws",
+        "cloud",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": false,
+      "examples": [
+        "aws_secret_access_key = [REDACTED_FOR_DOCS]kYB/Vt"
+      ],
+      "non_examples": [
+        "aws_secret_access_key = ${AWS_SECRET}"
+      ],
+      "remediation": "Rotate immediately. Use IAM roles, environment variables, or AWS Secrets Manager."
+    },
+    {
+      "id": "SGX005",
+      "name": "github_token",
+      "description": "GitHub personal access token or OAuth token",
+      "pattern": "(ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}|ghs_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{20,})",
+      "type": "content",
+      "severity": "critical",
+      "tags": [
+        "github",
+        "token",
+        "vcs"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "ghp_[REDACTED_FOR_DOCS]B7DVaWJt",
+        "gho_[REDACTED_FOR_DOCS]YHDCBA111",
+        "github_pat_11AA22BB33CC44DD55EE_[REDACTED_FOR_DOCS]"
+      ],
+      "non_examples": [],
+      "remediation": "Revoke the token at github.com/settings/tokens. Use GITHUB_TOKEN from Actions secrets."
+    },
+    {
+      "id": "SGX006",
+      "name": "stripe_api_key",
+      "description": "Stripe live or test secret/restricted key",
+      "pattern": "(sk_live_[A-Za-z0-9]{24,}|sk_test_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,})",
+      "type": "content",
+      "severity": "critical",
+      "tags": [
+        "stripe",
+        "payments",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "sk_live_51[REDACTED_FOR_DOCS]xwvutsrqpon",
+        "sk_test_4[REDACTED_FOR_DOCS]bcdefabcdef",
+        "rk_live_51[REDACTED_FOR_DOCS]XXXXXXXXXX"
+      ],
+      "non_examples": [
+        "sk_test_YOUR_KEY_HERE"
+      ],
+      "remediation": "Roll the key in the Stripe dashboard immediately."
+    },
+    {
+      "id": "SGX007",
+      "name": "generic_ai_key",
+      "description": "AI/LLM provider API key with a known prefix pattern",
+      "pattern": "(sk-(live|prod|test|ant)-[A-Za-z0-9]{20,}|ai-key-[A-Za-z0-9]{20,})",
+      "type": "content",
+      "severity": "high",
+      "tags": [
+        "ai",
+        "api-key",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "sk-live-[REDACTED_FOR_DOCS]A987654321",
+        "sk-prod-[REDACTED_FOR_DOCS]A1234567890"
+      ],
+      "non_examples": [
+        "sk-test-YOUR_KEY_HERE",
+        "ai-key-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+      ],
+      "remediation": "Revoke the key via the provider dashboard. Store in environment variables."
+    },
+    {
+      "id": "SGX008",
+      "name": "jwt_token",
+      "description": "JSON Web Token \u2014 three base64url segments separated by dots",
+      "pattern": "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}",
+      "type": "content",
+      "severity": "high",
+      "tags": [
+        "jwt",
+        "token",
+        "auth"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.[REDACTED_FOR_DOCS].[REDACTED_FOR_DOCS]"
+      ],
+      "non_examples": [],
+      "remediation": "Invalidate the token server-side. Never hardcode tokens \u2014 use session storage or secrets."
+    },
+    {
+      "id": "SGX009",
+      "name": "slack_bot_token",
+      "description": "Slack bot token",
+      "pattern": "xoxb-[0-9]{9,13}-[0-9]{9,13}-[A-Za-z0-9]{20,}",
+      "type": "content",
+      "severity": "high",
+      "tags": [
+        "slack",
+        "token",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "xoxb-512345678901-1098765432109-[REDACTED_FOR_DOCS]"
+      ],
+      "non_examples": [],
+      "remediation": "Revoke at api.slack.com/apps. Store in environment variables."
+    },
+    {
+      "id": "SGX010",
+      "name": "slack_user_token",
+      "description": "Slack user OAuth token",
+      "pattern": "xoxp-[0-9]{9,13}-[0-9]{9,13}-[A-Za-z0-9]{20,}",
+      "type": "content",
+      "severity": "high",
+      "tags": [
+        "slack",
+        "token",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "xoxp-098765432109-567890123456-[REDACTED_FOR_DOCS]"
+      ],
+      "non_examples": [],
+      "remediation": "Revoke at api.slack.com/apps. Store in environment variables."
+    },
+    {
+      "id": "SGX011",
+      "name": "firebase_server_key",
+      "description": "Firebase Cloud Messaging server key",
+      "pattern": "AAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140,}",
+      "type": "content",
+      "severity": "high",
+      "tags": [
+        "firebase",
+        "google",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [],
+      "non_examples": [],
+      "remediation": "Regenerate the key in the Firebase console. Migrate to Firebase Admin SDK."
+    },
+    {
+      "id": "SGX012",
+      "name": "private_key_header",
+      "description": "PEM private key block header",
+      "pattern": "-----BEGIN (RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----",
+      "type": "content",
+      "severity": "critical",
+      "tags": [
+        "private-key",
+        "pem",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "-----BEGIN RSA PRIVATE KEY-----",
+        "-----BEGIN PRIVATE KEY-----",
+        "-----BEGIN OPENSSH PRIVATE KEY-----"
+      ],
+      "non_examples": [
+        "-----BEGIN PUBLIC KEY-----"
+      ],
+      "remediation": "Remove from history using git-filter-repo. Generate a new key pair."
+    },
+    {
+      "id": "SGX013",
+      "name": "oauth_client_secret",
+      "description": "Google OAuth client secret format",
+      "pattern": "0GOCSPX-[A-Za-z0-9_-]{28,}",
+      "type": "content",
+      "severity": "critical",
+      "tags": [
+        "oauth",
+        "google",
+        "credentials"
+      ],
+      "enabled": true,
+      "case_sensitive": true,
+      "examples": [
+        "0GOCSPX-[REDACTED_FOR_DOCS]"
+      ],
+      "non_examples": [],
+      "remediation": "Regenerate credentials in Google Cloud Console."
+    },
+    {
+      "id": "SGX101",
+      "name": "private_key_file",
+      "description": "Private key file committed to repository",
+      "pattern": "(^|/)id_(rsa|dsa|ecdsa|ed25519)$",
+      "type": "filename",
+      "severity": "critical",
+      "tags": [
+        "private-key",
+        "ssh",
+        "filename"
+      ],
+      "enabled": true,
+      "case_sensitive": false,
+      "examples": [
+        "id_rsa",
+        "id_dsa",
+        "id_ecdsa",
+        "id_ed25519"
+      ],
+      "non_examples": [
+        "id_rsa.pub"
+      ],
+      "remediation": "Remove from tracking: git rm --cached <file>. Add to .gitignore."
+    },
+    {
+      "id": "SGX102",
+      "name": "pem_key_file",
+      "description": "PEM key or certificate file",
+      "pattern": "\\.(pem|key|p12|pfx|keystore|ppk)$",
+      "type": "filename",
+      "severity": "critical",
+      "tags": [
+        "private-key",
+        "certificate",
+        "filename"
+      ],
+      "enabled": true,
+      "case_sensitive": false,
+      "examples": [
+        "server.pem",
+        "client.key",
+        "keystore.p12"
+      ],
+      "non_examples": [],
+      "remediation": "Remove from tracking. Add extension to .gitignore."
+    },
+    {
+      "id": "SGX103",
+      "name": "env_file",
+      "description": "Environment variable file that may contain secrets",
+      "pattern": "\\.env(?!\\.(example|sample|template|dist|test))(?:\\.[a-z]+)?$",
+      "type": "filename",
+      "severity": "high",
+      "tags": [
+        "env",
+        "filename"
+      ],
+      "enabled": true,
+      "case_sensitive": false,
+      "examples": [
+        ".env",
+        ".env.local",
+        ".env.production"
+      ],
+      "non_examples": [
+        ".env.example",
+        ".env.sample",
+        ".env.template"
+      ],
+      "remediation": "Add .env to .gitignore. Use .env.example for documentation."
+    },
+    {
+      "id": "SGX104",
+      "name": "secret_directory",
+      "description": "Directory commonly used to store credentials",
+      "pattern": "^(secrets?|private|credentials?|creds)/",
+      "type": "filename",
+      "severity": "high",
+      "tags": [
+        "directory",
+        "filename"
+      ],
+      "enabled": true,
+      "case_sensitive": false,
+      "examples": [
+        "secrets/prod.json",
+        "private/key.pem",
+        "credentials/aws.json"
+      ],
+      "non_examples": [],
+      "remediation": "Move secrets out of the repository. Use a secrets manager."
+    }
+  ]
+}
