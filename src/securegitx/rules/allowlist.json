@@ -1,0 +1,47 @@
+{
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "AL001",
+      "description": "Placeholder AWS key used in documentation",
+      "type": "exact",
+      "value": "AKIAIOSFODNN7EXAMPLE",
+      "rule_id": "SGX003"
+    },
+    {
+      "id": "AL002",
+      "description": "Generic placeholder secret used in AWS docs",
+      "type": "exact",
+      "value": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "rule_id": "SGX004"
+    },
+    {
+      "id": "AL003",
+      "description": "Stripe test key placeholder",
+      "type": "substring",
+      "value": "sk_test_YOUR_KEY",
+      "rule_id": "SGX006"
+    },
+    {
+      "id": "AL004",
+      "description": "AI key all-caps placeholder pattern",
+      "type": "regex",
+      "value": "ai-key-[X]{10,}",
+      "rule_id": "SGX007"
+    },
+    {
+      "id": "AL005",
+      "description": "Example .env files are safe to commit",
+      "type": "regex",
+      "value": "\\.env\\.(example|sample|template|dist)$",
+      "rule_id": "SGX103"
+    },
+    {
+      "id": "AL006",
+      "description": "Test fixtures directory — secrets here are intentional test data",
+      "type": "path_prefix",
+      "value": "tests/fixtures/",
+      "rule_id": null
+    }
+  ]
+}
