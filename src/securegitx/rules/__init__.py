@@ -2,7 +2,7 @@
 Rule and allowlist types, loaders, and allowlist matching.
 
 rules.json  — bare array OR {"version": ..., "rules": [...]} object (required)
-allowlist.json — array of suppression entries (optional)
+allowlist.json — bare array OR {"allowlist": [...]} object           (optional)
 
 Rule fields:
   id          str   unique identifier, e.g. "SGX001"
@@ -78,24 +78,26 @@ def is_allowlisted(
     return False
 
 
-def _extract_rules_list(data: object, path: Path) -> list:
-    """Accept a bare array or a {"rules": [...]} wrapper object."""
+def _unwrap_list(data: object, list_keys: tuple[str, ...], path: Path) -> list:
+    """Accept a bare array or an object whose value under any of list_keys is the array."""
     if isinstance(data, list):
         return data
     if isinstance(data, dict):
-        if "rules" not in data:
-            raise RuleLoadError(
-                f"rules.json at {path} is an object but has no 'rules' key"
-            )
-        rules = data["rules"]
-        if not isinstance(rules, list):
-            raise RuleLoadError(
-                f"rules.json 'rules' value must be an array, got {type(rules).__name__}"
-            )
-        return rules
+        for key in list_keys:
+            if key in data:
+                value = data[key]
+                if not isinstance(value, list):
+                    raise RuleLoadError(
+                        f"{path.name} '{key}' value must be an array, "
+                        f"got {type(value).__name__}"
+                    )
+                return value
+        raise RuleLoadError(
+            f"{path.name} is an object but has none of the expected keys: "
+            f"{list_keys}"
+        )
     raise RuleLoadError(
-        f"rules.json must be a JSON array or object with a 'rules' key, "
-        f"got {type(data).__name__}"
+        f"{path.name} must be a JSON array or object, got {type(data).__name__}"
     )
 
 
@@ -108,7 +110,7 @@ def load_rules() -> list[Rule]:
     except json.JSONDecodeError as exc:
         raise RuleLoadError(f"rules.json invalid JSON: {exc}")
 
-    entries = _extract_rules_list(data, path)
+    entries = _unwrap_list(data, ("rules",), path)
 
     rules: list[Rule] = []
     for i, entry in enumerate(entries):
@@ -144,11 +146,10 @@ def load_allowlist() -> list[AllowEntry]:
     except json.JSONDecodeError as exc:
         raise RuleLoadError(f"allowlist.json invalid JSON: {exc}")
 
-    if not isinstance(data, list):
-        raise RuleLoadError("allowlist.json must be a JSON array")
+    entries_data = _unwrap_list(data, ("allowlist", "entries"), path)
 
     entries: list[AllowEntry] = []
-    for i, entry in enumerate(data):
+    for i, entry in enumerate(entries_data):
         try:
             entries.append(
                 AllowEntry(
