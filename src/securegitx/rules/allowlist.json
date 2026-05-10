@@ -4,44 +4,68 @@
     {
       "id": "AL001",
       "description": "Placeholder AWS key used in documentation",
+      "reason": "Official example value from documentation",
       "type": "exact",
+      "scope": "content",
       "value": "AKIAIOSFODNN7EXAMPLE",
-      "rule_id": "SGX003"
+      "rule_id": "SGX003",
+      "reviewed_by": "securegitx",
+      "expires_at": null
     },
     {
       "id": "AL002",
       "description": "Generic placeholder secret used in AWS docs",
+      "reason": "Official example secret value from documentation",
       "type": "exact",
+      "scope": "content",
       "value": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      "rule_id": "SGX004"
+      "rule_id": "SGX004",
+      "reviewed_by": "securegitx",
+      "expires_at": null
     },
     {
       "id": "AL003",
       "description": "Stripe test key placeholder",
+      "reason": "Intentional test placeholder token",
       "type": "substring",
+      "scope": "content",
       "value": "sk_test_YOUR_KEY",
-      "rule_id": "SGX006"
+      "rule_id": "SGX006",
+      "reviewed_by": "securegitx",
+      "expires_at": null
     },
     {
       "id": "AL004",
       "description": "AI key all-caps placeholder pattern",
+      "reason": "Documentation placeholder pattern",
       "type": "regex",
+      "scope": "content",
       "value": "ai-key-[X]{10,}",
-      "rule_id": "SGX007"
+      "rule_id": "SGX007",
+      "reviewed_by": "securegitx",
+      "expires_at": null
     },
     {
       "id": "AL005",
       "description": "Example .env files are safe to commit",
+      "reason": "Explicit sample/template environment files only",
       "type": "regex",
+      "scope": "path",
       "value": "\\.env\\.(example|sample|template|dist)$",
-      "rule_id": "SGX103"
+      "rule_id": "SGX103",
+      "reviewed_by": "securegitx",
+      "expires_at": null
     },
     {
       "id": "AL006",
       "description": "Test fixtures directory — secrets here are intentional test data",
+      "reason": "Scoped test fixture path",
       "type": "path_prefix",
+      "scope": "path",
       "value": "tests/fixtures/",
-      "rule_id": null
+      "rule_id": null,
+      "reviewed_by": "securegitx",
+      "expires_at": null
     }
   ]
 }
