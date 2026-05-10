@@ -1,4 +1,5 @@
 """Tests for hooks.py — uses a temp directory to simulate a git repo."""
+
 import stat
 from pathlib import Path
 
