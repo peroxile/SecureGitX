@@ -2,6 +2,7 @@
 Config loading — merges defaults, file config, and environment overrides.
 Never executes code from config.
 """
+
 from __future__ import annotations
 
 import os
@@ -38,14 +39,21 @@ class Config:
     enforce_safe_email: bool = True
     auto_gitignore: bool = True
     entropy_threshold: float = 4.5
-    exclude_dirs: list[str] = field(default_factory=lambda: [
-        ".git", "node_modules", "vendor", "dist", "build", "__pycache__",
-    ])
-    rules_path: str = ""       # empty = use bundled rules
-    allowlist_path: str = ""   # empty = use bundled allowlist
+    exclude_dirs: list[str] = field(
+        default_factory=lambda: [
+            ".git",
+            "node_modules",
+            "vendor",
+            "dist",
+            "build",
+            "__pycache__",
+        ]
+    )
+    rules_path: str = ""  # empty = use bundled rules
+    allowlist_path: str = ""  # empty = use bundled allowlist
     log_level: str = "info"
-    format: str = "text"       # "text" | "json"
-    fail_on: str = "high"      # "low" | "medium" | "high" | "critical"
+    format: str = "text"  # "text" | "json"
+    fail_on: str = "high"  # "low" | "medium" | "high" | "critical"
 
 
 class ConfigError(Exception):
@@ -74,7 +82,10 @@ def _apply_dict(config: Config, data: dict, source: str) -> None:
     for key, value in data.items():
         if key not in _ALLOWED_KEYS:
             # Warn but don't abort — unknown keys are ignored
-            print(f"[securegitx] Warning: unknown config key '{key}' in {source}", flush=True)
+            print(
+                f"[securegitx] Warning: unknown config key '{key}' in {source}",
+                flush=True,
+            )
             continue
         if not hasattr(config, key):
             continue
@@ -90,11 +101,11 @@ def _apply_env(config: Config) -> None:
     """Override config from SGX_* environment variables."""
     mapping = {
         "SGX_ENTROPY_THRESHOLD": ("entropy_threshold", float),
-        "SGX_LOG_LEVEL":         ("log_level", str),
-        "SGX_FORMAT":            ("format", str),
-        "SGX_FAIL_ON":           ("fail_on", str),
-        "SGX_RULES_PATH":        ("rules_path", str),
-        "SGX_ALLOWLIST_PATH":    ("allowlist_path", str),
+        "SGX_LOG_LEVEL": ("log_level", str),
+        "SGX_FORMAT": ("format", str),
+        "SGX_FAIL_ON": ("fail_on", str),
+        "SGX_RULES_PATH": ("rules_path", str),
+        "SGX_ALLOWLIST_PATH": ("allowlist_path", str),
     }
     for env_key, (attr, cast) in mapping.items():
         val = os.environ.get(env_key)
