@@ -25,8 +25,10 @@ EXIT_USAGE = 2
 EXIT_GIT = 3
 EXIT_RULES = 4
 
+_SUBCOMMANDS = {"scan", "hook", "init", "rules"}
 
-# Internal git helpers (identity/branch only — general git ops live in gitops)
+
+# Internal git helpers
 
 
 def _git_cfg(key: str) -> str:
@@ -180,7 +182,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         findings: list = []
 
         if args.tracked:
-            files = gitops.tracked_files()
+            files = list(gitops.tracked_files())
             if verbose:
                 T.log_info(f"Scanning {len(files)} tracked file(s)...")
             for filename in files:
@@ -250,6 +252,93 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             T.log_success("All clear — repository is clean")
 
     return EXIT_BLOCKED if blocked else EXIT_CLEAN
+
+
+def _cmd_commit(message: str) -> int:
+    from securegitx import gitops, scanner, report
+    from securegitx.config import load_config, ConfigError
+    from securegitx.rules import load_rules, load_allowlist, RuleLoadError
+
+    T.show_banner(__version__)
+    _show_auth_phase()
+    T.separator()
+    print()
+
+    try:
+        config = load_config()
+    except ConfigError as e:
+        T.log_error(f"Config: {e}")
+        return EXIT_USAGE
+
+    try:
+        rules = load_rules()
+        allowlist = load_allowlist()
+    except RuleLoadError as e:
+        T.log_error(f"Rules: {e}")
+        return EXIT_RULES
+
+    try:
+        if not gitops.is_git_repo():
+            T.log_error("Not a git repository")
+            return EXIT_GIT
+
+        staged = gitops.staged_files()
+
+        T.log_step("PHASE 2: SCANNING — Staged Changes")
+        T.separator()
+
+        if not staged:
+            T.log_warning("No files staged — nothing to commit")
+            return EXIT_CLEAN
+
+        T.log_info(f"{len(staged)} file(s) staged")
+        for f in staged:
+            print(f"    • {f}")
+
+        findings: list = []
+        findings.extend(scanner.scan_filenames(staged, rules, allowlist))
+        diff = gitops.staged_diff()
+        findings.extend(
+            scanner.scan_diff(diff, rules, allowlist, config.entropy_threshold)
+        )
+
+    except gitops.GitError as e:
+        T.log_error(f"Git: {e}")
+        return EXIT_GIT
+
+    T.separator()
+    print()
+
+    if report.exceeds_threshold(findings, config.fail_on):
+        report.format_text(findings)
+        print()
+        T.log_error("Commit blocked — resolve findings above and retry")
+        return EXIT_BLOCKED
+
+    if findings:
+        report.format_text(findings)
+
+    T.log_success("No secrets detected")
+    T.separator()
+    print()
+
+    T.log_step("PHASE 3: SECURE COMMIT")
+    T.separator()
+    T.log_info(f"Author:  {_git_cfg('user.name')} <{_git_cfg('user.email')}>")
+    T.log_info(f"Branch:  {_git_branch()}")
+    T.log_info(f"Message: {message}")
+    print()
+
+    try:
+        subprocess.run(["git", "commit", "-m", message], check=True)
+        print()
+        T.log_success("Commit successful")
+        subprocess.run(["git", "log", "-1", "--oneline"])
+    except subprocess.CalledProcessError:
+        T.log_error("Commit failed")
+        return EXIT_GIT
+
+    return EXIT_CLEAN
 
 
 def _cmd_hook(args: argparse.Namespace) -> int:
@@ -351,6 +440,16 @@ def _cmd_rules(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> None:
+    args_list = sys.argv[1:] if argv is None else list(argv)
+
+    # Bare invocation: securegitx "commit message"
+    if (
+        args_list
+        and not args_list[0].startswith("-")
+        and args_list[0] not in _SUBCOMMANDS
+    ):
+        sys.exit(_cmd_commit(" ".join(args_list)))
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 
