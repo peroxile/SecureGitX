@@ -135,6 +135,24 @@ def _build_parser() -> argparse.ArgumentParser:
     rules_sub.add_parser("validate")
     rules_sub.add_parser("list")
 
+    # daemon
+    daemon = sub.add_parser("daemon", help="Background file watcher")
+    daemon_sub = daemon.add_subparsers(dest="daemon_command")
+    ds = daemon_sub.add_parser("start")
+    ds.add_argument(
+        "--interval",
+        type=float,
+        default=2.0,
+        help="Poll interval in seconds (default: 2.0)",
+    )
+    ds.add_argument(
+        "--foreground",
+        action="store_true",
+        help="Block until stopped (default: exits after starting thread)",
+    )
+    daemon_sub.add_parser("stop")
+    daemon_sub.add_parser("status")
+
     return parser
 
 
@@ -436,6 +454,58 @@ def _cmd_rules(args: argparse.Namespace) -> int:
     return EXIT_CLEAN
 
 
+def _cmd_daemon(args: argparse.Namespace) -> int:
+    from securegitx import gitops
+    from securegitx import daemon as _daemon
+
+    try:
+        root = gitops.repo_root()
+    except gitops.GitError as e:
+        T.log_error(str(e))
+        return EXIT_GIT
+
+    cmd = getattr(args, "daemon_command", None)
+
+    if cmd == "start":
+        T.log_step("Starting SecureGitX daemon...")
+        T.separator()
+        try:
+            msg = _daemon.start(root, interval=getattr(args, "interval", 2.0))
+            T.log_success(msg)
+            if getattr(args, "foreground", False):
+                T.log_info("Running in foreground — press Ctrl+C to stop")
+                try:
+                    # Re-attach to the running daemon thread and block
+                    import time
+
+                    while _daemon.is_running(root):
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    _daemon.stop(root)
+                    T.log_success("Daemon stopped")
+        except _daemon.DaemonError as e:
+            T.log_error(str(e))
+            return EXIT_USAGE
+
+    elif cmd == "stop":
+        T.log_step("Stopping SecureGitX daemon...")
+        T.separator()
+        try:
+            T.log_success(_daemon.stop(root))
+        except _daemon.DaemonError as e:
+            T.log_error(str(e))
+            return EXIT_USAGE
+
+    elif cmd == "status":
+        print(_daemon.status(root))
+
+    else:
+        T.log_error("Specify: daemon start | daemon stop | daemon status")
+        return EXIT_USAGE
+
+    return EXIT_CLEAN
+
+
 # Entry point
 
 
@@ -463,6 +533,7 @@ def main(argv: list[str] | None = None) -> None:
         "hook": _cmd_hook,
         "init": _cmd_init,
         "rules": _cmd_rules,
+        "daemon": _cmd_daemon,
     }
     sys.exit(handlers[args.command](args))
 
