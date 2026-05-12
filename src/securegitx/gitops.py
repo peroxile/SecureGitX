@@ -2,6 +2,7 @@
 Git operations — subprocess calls only. No rule logic here.
 All functions raise GitError on failure.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -64,16 +65,30 @@ def staged_diff(cwd: Path | None = None) -> str:
     return _run(["git", "diff", "--cached"], cwd=cwd)
 
 
-def tracked_files(cwd: Path | None = None) -> list[str]:
-    """Return all files tracked by git."""
-    out = _run(["git", "ls-files"], cwd=cwd)
-    return [line for line in out.splitlines() if line.strip()]
+def read_tracked_file(filename: str, cwd: Path | None = None) -> str | None:
+    """Read a tracked file's content via git show.
+    Returns None for binary or undecodable files.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "show", f":{filename}"],
+            capture_output=True,
+            cwd=cwd,
+        )
+    except FileNotFoundError:
+        raise GitError("git executable not found")
 
+    if result.returncode != 0:
+        raise GitError(result.stderr.decode("utf-8", errors="replace").strip())
 
-def read_tracked_file(filename: str, cwd: Path | None = None) -> str:
-    """Read a tracked file's content via git show (works on staged too)."""
-    out = _run(["git", "show", f":{filename}"], cwd=cwd)
-    return out
+    data = result.stdout
+    if b"\x00" in data:
+        return None
+
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def user_email(cwd: Path | None = None) -> str:
