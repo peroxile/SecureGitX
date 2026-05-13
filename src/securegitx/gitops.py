@@ -65,6 +65,12 @@ def staged_diff(cwd: Path | None = None) -> str:
     return _run(["git", "diff", "--cached"], cwd=cwd)
 
 
+def tracked_files(cwd: Path | None = None) -> list[str]:
+    """Return all files tracked by git."""
+    out = _run(["git", "ls-files"], cwd=cwd)
+    return [line for line in out.splitlines() if line.strip()]
+
+
 def read_tracked_file(filename: str, cwd: Path | None = None) -> str | None:
     """Read a tracked file's content via git show.
     Returns None for binary or undecodable files.
@@ -78,17 +84,29 @@ def read_tracked_file(filename: str, cwd: Path | None = None) -> str | None:
     except FileNotFoundError:
         raise GitError("git executable not found")
 
+    stderr = result.stderr
+    if isinstance(stderr, bytes):
+        stderr_text = stderr.decode("utf-8", errors="replace").strip()
+    else:
+        stderr_text = str(stderr).strip()
+
     if result.returncode != 0:
-        raise GitError(result.stderr.decode("utf-8", errors="replace").strip())
+        raise GitError(stderr_text or f"git show failed: {filename}")
 
     data = result.stdout
-    if b"\x00" in data:
-        return None
 
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError:
+    if isinstance(data, bytes):
+        if b"\x00" in data:
+            return None
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+
+    # test doubles may return str
+    if "\x00" in data:
         return None
+    return data
 
 
 def user_email(cwd: Path | None = None) -> str:
