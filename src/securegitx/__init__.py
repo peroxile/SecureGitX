@@ -3,4 +3,4 @@ from importlib.metadata import PackageNotFoundError, version
 try:
     __version__ = version("securegitx")
 except PackageNotFoundError:
-    __version__ = "unknown"
+    __version__ = "dev"

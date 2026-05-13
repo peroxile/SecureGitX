@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=77", "wheel"]
+requires = ["setuptools>=77", "setuptools-scm", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "securegitx"
-version = "2.0.0"
-description = "Lightweight pre-commit tool that blocks secrets during git commits"
+dynamic = ["version"]
+description = "Pre-commit secret scanner"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -26,6 +26,18 @@ where = ["src"]
 [tool.setuptools.package-data]
 "securegitx.rules" = ["*.json"]
 
+[tool.setuptools_scm]
+# Writes version to src/securegitx/_version.py at build time.
+# Tag format: v1.2.3  →  __version__ = "1.2.3"
+# Untagged:   v1.2.3-4-gabcdef  →  __version__ = "1.2.3.post4+gabcdef"
+write_to = "src/securegitx/_version.py"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.coverage.run]
+omit = [
+    "src/securegitx/terminal.py",
+    "src/securegitx/_version.py",
+]
