@@ -25,7 +25,7 @@ EXIT_USAGE = 2
 EXIT_GIT = 3
 EXIT_RULES = 4
 
-_SUBCOMMANDS = {"scan", "hook", "init", "rules"}
+_SUBCOMMANDS = {"scan", "hook", "init", "rules", "daemon"}
 
 
 # Internal git helpers
@@ -88,10 +88,7 @@ def _show_auth_phase() -> None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="securegitx",
-        description="Lightweight pre-commit secret scanner",
-    )
+    parser = argparse.ArgumentParser(prog="securegitx")
     parser.add_argument(
         "--version", action="version", version=f"securegitx {__version__}"
     )
@@ -145,11 +142,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=2.0,
         help="Poll interval in seconds (default: 2.0)",
     )
-    ds.add_argument(
-        "--foreground",
-        action="store_true",
-        help="Block until stopped (default: exits after starting thread)",
-    )
     daemon_sub.add_parser("stop")
     daemon_sub.add_parser("status")
 
@@ -189,7 +181,6 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             return EXIT_GIT
 
         if verbose:
-            T.show_banner(__version__)
             _show_auth_phase()
             T.separator()
             print()
@@ -207,6 +198,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 findings.extend(scanner.scan_filenames([filename], rules, allowlist))
                 try:
                     content = gitops.read_tracked_file(filename)
+                    if content is None:
+                        continue
                     findings.extend(
                         scanner.scan_file_content(
                             content,
@@ -277,7 +270,6 @@ def _cmd_commit(message: str) -> int:
     from securegitx.config import load_config, ConfigError
     from securegitx.rules import load_rules, load_allowlist, RuleLoadError
 
-    T.show_banner(__version__)
     _show_auth_phase()
     T.separator()
     print()
@@ -470,19 +462,7 @@ def _cmd_daemon(args: argparse.Namespace) -> int:
         T.log_step("Starting SecureGitX daemon...")
         T.separator()
         try:
-            msg = _daemon.start(root, interval=getattr(args, "interval", 2.0))
-            T.log_success(msg)
-            if getattr(args, "foreground", False):
-                T.log_info("Running in foreground — press Ctrl+C to stop")
-                try:
-                    # Re-attach to the running daemon thread and block
-                    import time
-
-                    while _daemon.is_running(root):
-                        time.sleep(1)
-                except KeyboardInterrupt:
-                    _daemon.stop(root)
-                    T.log_success("Daemon stopped")
+            T.log_success(_daemon.start(root, interval=getattr(args, "interval", 2.0)))
         except _daemon.DaemonError as e:
             T.log_error(str(e))
             return EXIT_USAGE
@@ -508,16 +488,17 @@ def _cmd_daemon(args: argparse.Namespace) -> int:
 
 # Entry point
 
-
 def main(argv: list[str] | None = None) -> None:
     args_list = sys.argv[1:] if argv is None else list(argv)
 
-    # Bare invocation: securegitx "commit message"
-    if (
-        args_list
-        and not args_list[0].startswith("-")
-        and args_list[0] not in _SUBCOMMANDS
-    ):
+    # Bare invocation with no args → show banner + help
+    if not args_list:
+        T.show_banner(__version__)
+        _build_parser().print_help()
+        sys.exit(EXIT_USAGE)
+
+    # Bare commit message: securegitx "feat: add thing"
+    if not args_list[0].startswith("-") and args_list[0] not in _SUBCOMMANDS:
         sys.exit(_cmd_commit(" ".join(args_list)))
 
     parser = _build_parser()
