@@ -82,19 +82,24 @@ _BANNER_COMPACT_UNICODE = r"""
  ╚══════╝╚═════╝ ╚═╝  ╚═╝
 """
 
+_BANNER_FULL_MIN_WIDTH = 80
+
 
 def show_banner(version: str) -> None:
     """Print the SGX logo + info box. No-op when stdout is not a TTY."""
     if not _is_tty():
         return
+
     v = version.lstrip("v")
     width = _term_width()
 
     if _use_unicode():
-        if width >= 72:
-            print(f"{CYAN}{_BANNER_FULL_UNICODE}{NC}")
-        else:
-            print(f"{CYAN}{_BANNER_COMPACT_UNICODE}{NC}")
+        banner = (
+            _BANNER_FULL_UNICODE
+            if width >= _BANNER_FULL_MIN_WIDTH
+            else _BANNER_COMPACT_UNICODE
+        )
+        print(f"{CYAN}{banner}{NC}")
 
         l1_plain = f" SecureGitX v{v}"
         l2_plain = " Auth → Scan → Secure Commit"
@@ -102,8 +107,8 @@ def show_banner(version: str) -> None:
         l2_color = f" {CYAN}Auth{NC} → {CYAN}Scan{NC} → {CYAN}Secure Commit{NC}"
 
         box_w = max(len(l1_plain), len(l2_plain), 24)
-        if width < box_w + 6:
-            box_w = max(24, width - 6)
+        max_box = max(24, width - 6)
+        box_w = min(box_w, max_box)
 
         print(f"  ╭{'─' * box_w}╮")
         print(f"  │{l1_color}{' ' * max(0, box_w - len(l1_plain))}│")
