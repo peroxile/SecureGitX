@@ -117,12 +117,12 @@ def test_show_banner_unicode_full(monkeypatch: pytest.MonkeyPatch, capsys):
     assert "██████" in out
 
 
-def test_show_banner_unicode_compact(monkeypatch: pytest.MonkeyPatch, capsys):
+def test_show_banner_unicode_boundary_uses_compact(monkeypatch: pytest.MonkeyPatch, capsys):
     mod = reload_terminal(monkeypatch, tty=True, lang="en_US.UTF-8")
     monkeypatch.setattr(
         mod.shutil,
         "get_terminal_size",
-        lambda fallback=(80, 20): SimpleNamespace(columns=40),
+        lambda fallback=(80, 20): SimpleNamespace(columns=79),
     )
 
     mod.show_banner("v1.2.0")
@@ -132,3 +132,5 @@ def test_show_banner_unicode_compact(monkeypatch: pytest.MonkeyPatch, capsys):
     assert "Auth" in out
     assert "Scan" in out
     assert "Secure Commit" in out
+    assert "███████╗ ██████╗" in out
+    assert "███████╗███████╗" not in out
