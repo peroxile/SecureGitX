@@ -63,9 +63,34 @@
       "type": "path_prefix",
       "scope": "path",
       "value": "tests/fixtures/",
-      "rule_id": null,
+      "rule_id": "*",
       "reviewed_by": "securegitx",
       "expires_at": null
+    },
+
+    {
+      "rule_id": "*",
+      "path": "README.md",
+      "value": "*",
+      "comment": "Documentation contains intentional secret-format examples"
+    },
+    {
+      "rule_id": "*",
+      "path": "docs/*",
+      "value": "*",
+      "comment": "Docs contain intentional secret-format examples"
+    },
+    {
+      "rule_id": "*",
+      "path": "tests/*",
+      "value": "*",
+      "comment": "Tests contain intentional scanner fixtures"
+    },
+    {
+      "rule_id": "*",
+      "path": "src/securegitx/rules/*",
+      "value": "*",
+      "comment": "Rules and allowlist files contain intentional examples"
     }
   ]
 }
