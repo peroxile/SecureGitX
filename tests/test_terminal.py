@@ -8,6 +8,11 @@ import pytest
 import securegitx.terminal as terminal
 
 
+class FakeShutil:
+    def __init__(self, func):
+        self.get_terminal_size = func
+
+
 def reload_terminal(monkeypatch: pytest.MonkeyPatch, tty: bool, lang: str = ""):
     monkeypatch.setattr(terminal.sys.stdout, "isatty", lambda: tty, raising=False)
     monkeypatch.setenv("LANG", lang)
@@ -76,19 +81,18 @@ def test_log_step_writes_stdout(capsys):
 
 
 def test_term_width_uses_fallback_on_error(monkeypatch: pytest.MonkeyPatch):
-    def raise_error(*args, **kwargs):
+    def raise_error(*_args, **_kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(terminal.shutil, "get_terminal_size", raise_error)
+    monkeypatch.setattr(terminal, "shutil", FakeShutil(raise_error))
     assert terminal._term_width() == 80
 
 
 def test_term_width_uses_terminal_size(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        terminal.shutil,
-        "get_terminal_size",
-        lambda fallback=(80, 20): SimpleNamespace(columns=120),
-    )
+    def fake_get_terminal_size(*_args, **_kwargs):
+        return SimpleNamespace(columns=120)
+
+    monkeypatch.setattr(terminal, "shutil", FakeShutil(fake_get_terminal_size))
     assert terminal._term_width() == 120
 
 
@@ -102,9 +106,9 @@ def test_show_banner_non_tty_is_noop(monkeypatch: pytest.MonkeyPatch, capsys):
 def test_show_banner_unicode_full(monkeypatch: pytest.MonkeyPatch, capsys):
     mod = reload_terminal(monkeypatch, tty=True, lang="en_US.UTF-8")
     monkeypatch.setattr(
-        mod.shutil,
-        "get_terminal_size",
-        lambda fallback=(80, 20): SimpleNamespace(columns=100),
+        mod,
+        "shutil",
+        FakeShutil(lambda *_args, **_kwargs: SimpleNamespace(columns=100)),
     )
 
     mod.show_banner("v1.2.0")
@@ -115,14 +119,17 @@ def test_show_banner_unicode_full(monkeypatch: pytest.MonkeyPatch, capsys):
     assert "Scan" in out
     assert "Secure Commit" in out
     assert "██████" in out
+    assert "███████╗███████╗" in out
 
 
-def test_show_banner_unicode_boundary_uses_compact(monkeypatch: pytest.MonkeyPatch, capsys):
+def test_show_banner_unicode_boundary_uses_compact(
+    monkeypatch: pytest.MonkeyPatch, capsys
+):
     mod = reload_terminal(monkeypatch, tty=True, lang="en_US.UTF-8")
     monkeypatch.setattr(
-        mod.shutil,
-        "get_terminal_size",
-        lambda fallback=(80, 20): SimpleNamespace(columns=79),
+        mod,
+        "shutil",
+        FakeShutil(lambda *_args, **_kwargs: SimpleNamespace(columns=79)),
     )
 
     mod.show_banner("v1.2.0")
