@@ -54,7 +54,7 @@ def _git_branch() -> str:
 
 
 def _show_auth_phase() -> None:
-    T.log_step("PHASE 1: AUTHENTICATION — Verifying Identity")
+    T.log_step("PHASE 1: AUTHENTICATION — Identity")
     T.separator()
 
     name = _git_cfg("user.name")
@@ -397,29 +397,55 @@ def _cmd_init(args: argparse.Namespace) -> int:
     config_file = Path(".securegitx.toml")
     if config_file.exists():
         T.log_info(f"Config already exists: {config_file}")
-        return EXIT_CLEAN
-
-    config_file.write_text(
-        "enforce_safe_email = true\n"
-        "auto_gitignore = true\n"
-        "entropy_threshold = 4.5\n"
-        'fail_on = "high"\n'
-        'format = "text"\n'
-    )
-    T.log_success(f"Created {config_file}")
+    else:
+        config_file.write_text(
+            "enforce_safe_email = true\n"
+            "auto_gitignore = true\n"
+            "entropy_threshold = 4.5\n"
+            'fail_on = "high"\n'
+            'format = "text"\n'
+        )
+        T.log_success(f"Created {config_file}")
 
     if not args.no_gitignore:
+        _init_gitignore()
+
+    return EXIT_CLEAN
+
+
+def _init_gitignore() -> None:
+    """
+    Update .gitignore using project detection and any pending daemon suggestions.
+    Falls back to a minimal entry if project detection is unavailable.
+    """
+    try:
+        from securegitx import gitops
+        from securegitx import daemon as _daemon
+        from securegitx.project_detect import detect
+        from securegitx.gitignore_builder import ensure_gitignore
+
+        root = gitops.repo_root()
+        project = detect(root)
+        suggestions = _daemon.read_suggestions(root)
+
+        msg = ensure_gitignore(root, project.type, extra_entries=suggestions or None)
+        T.log_success(msg)
+
+        if suggestions:
+            _daemon._suggestions_path(root).write_text("[]", encoding="utf-8")
+            T.log_info(f"Applied {len(suggestions)} pending daemon suggestion(s)")
+
+    except Exception:
+        # Graceful fallback — at minimum ignore the config file
         gitignore = Path(".gitignore")
-        entry = "\n# SecureGitX\n.securegitx.toml\n"
+        entry = "\n# SecureGitX\n.securegitx.toml\n.securegitx/\n"
         if gitignore.exists():
             if ".securegitx.toml" not in gitignore.read_text():
                 gitignore.open("a").write(entry)
-                T.log_success("Added .securegitx.toml to .gitignore")
+                T.log_success("Added .securegitx entries to .gitignore")
         else:
             gitignore.write_text(entry.lstrip())
             T.log_success("Created .gitignore")
-
-    return EXIT_CLEAN
 
 
 def _cmd_rules(args: argparse.Namespace) -> int:
@@ -487,6 +513,7 @@ def _cmd_daemon(args: argparse.Namespace) -> int:
 
 
 # Entry point
+
 
 def main(argv: list[str] | None = None) -> None:
     args_list = sys.argv[1:] if argv is None else list(argv)
