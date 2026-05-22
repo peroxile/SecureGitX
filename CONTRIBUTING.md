@@ -178,7 +178,7 @@ Must never:
 
 ---
 
-# Running Tests
+## Running Tests
 
 Run the full suite:
 
@@ -208,7 +208,7 @@ All checks should pass before opening a pull request.
 
 ---
 
-# Rule Contributions
+## Rule Contributions
 
 Rules live in:
 
@@ -270,7 +270,7 @@ Large architectural changes should be discussed in an issue first.
 
 ---
 
-# Security Reports
+## Security Reports
 
 Do not open public issues for undisclosed vulnerabilities.
 
@@ -280,6 +280,6 @@ Report security issues privately through GitHub Security Advisories:
 
 ---
 
-# License
+## License
 
 By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
