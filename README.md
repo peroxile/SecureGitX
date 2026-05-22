@@ -12,9 +12,7 @@
 
 ---
 
-SecureGitX is a local pre-commit secret scanner. It inspects your staged changes before every `git commit` and blocks the commit if it finds API keys, tokens, credentials, or sensitive filenames. Everything runs on your machine — no server, no cloud dependency, no data leaves your repo.
-
-It also watches your repository in the background, generates a project-aware `.gitignore`, and gives you a clean CLI for day-to-day use.
+SecureGitX is a local pre-commit secret scanner. It inspects your staged changes before every `git commit` and blocks the commit if it finds API keys, tokens, credentials, or sensitive filenames.
 
 ---
 
@@ -106,7 +104,7 @@ securegitx scan --staged --quiet
 securegitx "feat: your commit message"
 ```
 
-This mirrors the original shell workflow — authentication check, staged scan, then commit. Useful if you prefer a single command over `git add` + `git commit`.
+Useful if you prefer a single command over `git add` + `git commit`.
 
 ### Hook
 
@@ -140,7 +138,6 @@ The daemon is an optional background watcher. It is off by default and must be s
 
 ```sh
 securegitx daemon start               # start watcher (runs in background)
-securegitx daemon start --foreground  # block until Ctrl+C
 securegitx daemon stop                # stop the running daemon
 securegitx daemon status              # show status and last scan result
 ```
