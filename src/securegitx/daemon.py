@@ -435,7 +435,7 @@ def apply_suggestions(root: Path, project_type: str) -> str:
     suggestions = read_suggestions(root)
     if not suggestions:
         return "No pending .gitignore suggestions"
-    from securegitx.gitignore_builder import ensure_gitignore
+    from securegitx.gitignore_build import ensure_gitignore
 
     msg = ensure_gitignore(root, project_type, extra_entries=suggestions)
     _suggestions_path(root).write_text("[]", encoding="utf-8")
