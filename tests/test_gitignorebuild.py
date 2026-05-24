@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from securegitx import gitignore_builder as g
+from securegitx import gitignore_build as g
 
 
 def test_build_section_includes_markers_and_always_entries():
