@@ -296,7 +296,7 @@ def test_check_untracked_sensitive_queues_suggestion(
     assert suggestions == ["secrets/api.key"]
 
 
-def test_apply_suggestions_calls_gitignore_builder(
+def test_apply_suggestions_calls_gitignore_build(
     repo_root: Path, monkeypatch: pytest.MonkeyPatch
 ):
     daemon._ensure_dirs(repo_root)
@@ -313,7 +313,7 @@ def test_apply_suggestions_calls_gitignore_builder(
         return "updated"
 
     monkeypatch.setattr(
-        "securegitx.gitignore_builder.ensure_gitignore", fake_ensure_gitignore
+        "securegitx.gitignore_build.ensure_gitignore", fake_ensure_gitignore
     )
 
     msg = daemon.apply_suggestions(repo_root, "python")
