@@ -132,6 +132,35 @@ def _build_parser() -> argparse.ArgumentParser:
     rules_sub.add_parser("validate")
     rules_sub.add_parser("list")
 
+    ru = rules_sub.add_parser("update")
+    ru.add_argument(
+        "--url",
+        dest="source_url",
+        default="",
+        help="Override default source URL for rules.json",
+    )
+    ru.add_argument(
+        "--no-verify",
+        dest="verify_checksum",
+        action="store_false",
+        default=True,
+        help="Skip SHA-256 checksum verification",
+    )
+    ru.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Check and validate without writing any files",
+    )
+    ru.add_argument(
+        "--force",
+        action="store_true",
+        help="Install even if remote version is not newer",
+    )
+
+    rules_sub.add_parser("rollback")
+    rules_sub.add_parser("check")
+
     # daemon
     daemon = sub.add_parser("daemon", help="Background file watcher")
     daemon_sub = daemon.add_subparsers(dest="daemon_command")
@@ -144,7 +173,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     daemon_sub.add_parser("stop")
     daemon_sub.add_parser("status")
-
     return parser
 
 
@@ -198,8 +226,6 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 findings.extend(scanner.scan_filenames([filename], rules, allowlist))
                 try:
                     content = gitops.read_tracked_file(filename)
-                    if content is None:
-                        continue
                     findings.extend(
                         scanner.scan_file_content(
                             content,
@@ -239,7 +265,12 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         T.separator()
         print()
         if findings:
-            T.log_warning(f"{len(findings)} finding(s) detected")
+            high = [f for f in findings if f.confidence != "low"]
+            low_fps = [f for f in findings if f.confidence == "low"]
+            T.log_warning(
+                f"{len(findings)} finding(s) detected "
+                f"({len(high)} high-confidence, {len(low_fps)} low-confidence)"
+            )
         else:
             T.log_success("No secrets detected")
 
@@ -397,61 +428,36 @@ def _cmd_init(args: argparse.Namespace) -> int:
     config_file = Path(".securegitx.toml")
     if config_file.exists():
         T.log_info(f"Config already exists: {config_file}")
-    else:
-        config_file.write_text(
-            "enforce_safe_email = true\n"
-            "auto_gitignore = true\n"
-            "entropy_threshold = 4.5\n"
-            'fail_on = "high"\n'
-            'format = "text"\n'
-        )
-        T.log_success(f"Created {config_file}")
+        return EXIT_CLEAN
+
+    config_file.write_text(
+        "enforce_safe_email = true\n"
+        "auto_gitignore = true\n"
+        "entropy_threshold = 4.5\n"
+        'fail_on = "high"\n'
+        'format = "text"\n'
+    )
+    T.log_success(f"Created {config_file}")
 
     if not args.no_gitignore:
-        _init_gitignore()
-
-    return EXIT_CLEAN
-
-
-def _init_gitignore() -> None:
-    """
-    Update .gitignore using project detection and any pending daemon suggestions.
-    Falls back to a minimal entry if project detection is unavailable.
-    """
-    try:
-        from securegitx import gitops
-        from securegitx import daemon as _daemon
-        from securegitx.project_detect import detect
-        from securegitx.gitignore_builder import ensure_gitignore
-
-        root = gitops.repo_root()
-        project = detect(root)
-        suggestions = _daemon.read_suggestions(root)
-
-        msg = ensure_gitignore(root, project.type, extra_entries=suggestions or None)
-        T.log_success(msg)
-
-        if suggestions:
-            _daemon._suggestions_path(root).write_text("[]", encoding="utf-8")
-            T.log_info(f"Applied {len(suggestions)} pending daemon suggestion(s)")
-
-    except Exception:
-        # Graceful fallback — at minimum ignore the config file
         gitignore = Path(".gitignore")
-        entry = "\n# SecureGitX\n.securegitx.toml\n.securegitx/\n"
+        entry = "\n# SecureGitX\n.securegitx.toml\n"
         if gitignore.exists():
             if ".securegitx.toml" not in gitignore.read_text():
                 gitignore.open("a").write(entry)
-                T.log_success("Added .securegitx entries to .gitignore")
+                T.log_success("Added .securegitx.toml to .gitignore")
         else:
             gitignore.write_text(entry.lstrip())
             T.log_success("Created .gitignore")
+
+    return EXIT_CLEAN
 
 
 def _cmd_rules(args: argparse.Namespace) -> int:
     from securegitx.rules import load_rules, RuleLoadError
 
     cmd = getattr(args, "rules_command", None)
+
     try:
         rules = load_rules()
     except RuleLoadError as e:
@@ -460,16 +466,68 @@ def _cmd_rules(args: argparse.Namespace) -> int:
 
     if cmd == "validate":
         T.log_success(f"{len(rules)} rules loaded and valid")
-    elif cmd == "list":
+        return EXIT_CLEAN
+
+    if cmd == "list":
         print("{:<10} {:<12} {:<10} {}".format("ID", "SEVERITY", "TYPE", "NAME"))
         print("─" * 60)
         for r in rules:
             print("{:<10} {:<12} {:<10} {}".format(r.id, r.severity, r.type, r.name))
-    else:
-        T.log_error("Specify: rules validate | rules list")
-        return EXIT_USAGE
+        return EXIT_CLEAN
 
-    return EXIT_CLEAN
+    if cmd == "update":
+        from securegitx import rules_update
+
+        T.log_step("Updating rule bundle...")
+        T.separator()
+        try:
+            result = rules_update.update(
+                source_url=getattr(args, "source_url", "")
+                or rules_update.DEFAULT_SOURCE_URL,
+                verify_checksum=getattr(args, "verify_checksum", True),
+                dry_run=getattr(args, "dry_run", False),
+                force=getattr(args, "force", False),
+            )
+        except rules_update.UpdateError as e:
+            T.log_error(str(e))
+            return EXIT_RULES
+
+        if getattr(result, "skipped", False):
+            T.log_info(result.skip_reason)
+        else:
+            T.log_success(
+                f"Updated {result.previous_version} → {result.new_version} "
+                f"({result.rule_count} rules)"
+            )
+            T.log_info(f"Checksum: {result.checksum}")
+        return EXIT_CLEAN
+
+    if cmd == "rollback":
+        from securegitx import rules_update
+
+        T.log_step("Rolling back rule bundle...")
+        T.separator()
+        try:
+            T.log_success(rules_update.rollback())
+        except rules_update.UpdateError as e:
+            T.log_error(str(e))
+            return EXIT_RULES
+        return EXIT_CLEAN
+
+    if cmd == "check":
+        from securegitx import rules_update
+
+        try:
+            print(rules_update.check())
+        except rules_update.UpdateError as e:
+            T.log_error(str(e))
+            return EXIT_RULES
+        return EXIT_CLEAN
+
+    T.log_error(
+        "Specify: rules validate | rules list | rules update | rules rollback | rules check"
+    )
+    return EXIT_USAGE
 
 
 def _cmd_daemon(args: argparse.Namespace) -> int:
@@ -518,7 +576,7 @@ def _cmd_daemon(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> None:
     args_list = sys.argv[1:] if argv is None else list(argv)
 
-    # Bare invocation with no args → show banner + help
+    # Bare invocation → show banner + help
     if not args_list:
         T.show_banner(__version__)
         _build_parser().print_help()
