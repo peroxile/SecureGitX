@@ -111,11 +111,13 @@ def scan_filenames(
 #  Diff content scanning
 
 def scan_diff(
-    diff_text: str,
+    diff_text: str | None,
     rules: list[Rule],
     allowlist: list[AllowEntry],
     entropy_threshold: float = 4.5,
 ) -> list[Finding]:
+    if not diff_text:
+        return []
     """
     Scan a unified diff for secret content.
     Only inspects added lines (lines starting with '+', excluding '+++').
@@ -155,12 +157,14 @@ def scan_diff(
 
 
 def scan_file_content(
-    content: str,
+    content: str | None,
     filename: str,
     rules: list[Rule],
     allowlist: list[AllowEntry],
     entropy_threshold: float = 4.5,
 ) -> list[Finding]:
+    if not content:
+        return []
     """Scan a complete file's content (for tracked-file audit mode)."""
     content_rules = [r for r in rules if r.type == "content"]
     findings: list[Finding] = []
