@@ -226,15 +226,16 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 findings.extend(scanner.scan_filenames([filename], rules, allowlist))
                 try:
                     content = gitops.read_tracked_file(filename)
-                    findings.extend(
-                        scanner.scan_file_content(
-                            content,
-                            filename,
-                            rules,
-                            allowlist,
-                            config.entropy_threshold,
+                    if content:
+                        findings.extend(
+                            scanner.scan_file_content(
+                                content,
+                                filename,
+                                rules,
+                                allowlist,
+                                config.entropy_threshold,
+                            )
                         )
-                    )
                 except gitops.GitError:
                     pass
         else:
