@@ -44,10 +44,11 @@ def test_unicode_tty_uses_unicode_symbols(monkeypatch: pytest.MonkeyPatch):
     assert mod.NC != ""
 
 
-def test_separator_prints_line(capsys):
+def test_separator_skips_non_tty(capsys, monkeypatch):
+    monkeypatch.setattr(terminal.sys.stdout, "isatty", lambda: False)
     terminal.separator()
     out = capsys.readouterr().out
-    assert terminal.SEP in out
+    assert out == ""
 
 
 def test_log_success_writes_stdout(capsys):
