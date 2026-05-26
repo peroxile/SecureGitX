@@ -1,11 +1,9 @@
-// Register vscode commands 
+// Register vscode commands
 // Each command calls scanner.ts (which calls Python), then updates the DiagnosticCollection
-// No scanning or diagnostic lives here — this file is a dispatcher
 
 import * as vscode from "vscode";
 import * as scanner from "./scanner";
 import * as diagnostics from "./diagnostics";
-
 
 export interface Deps {
   collection: vscode.DiagnosticCollection;
@@ -13,6 +11,14 @@ export interface Deps {
 }
 
 function getWorkspaceRoot(): string | undefined {
+  const activeUri = vscode.window.activeTextEditor?.document.uri;
+  const activeFolder = activeUri
+    ? vscode.workspace.getWorkspaceFolder(activeUri)
+    : undefined;
+  if (activeFolder) {
+    return activeFolder.uri.fsPath;
+  }
+
   const folder = vscode.workspace.workspaceFolders?.[0];
   return folder?.uri.fsPath;
 }
@@ -28,30 +34,55 @@ function requireWorkspaceRoot(): string | undefined {
   return root;
 }
 
+function resolveExecutableOrReport(
+  cwd: string,
+  output: vscode.OutputChannel
+): string | undefined {
+  try {
+    return scanner.resolveExecutable(cwd);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    output.appendLine(`[exec] error: ${msg}`);
+    vscode.window.showErrorMessage(`SecureGitX: ${msg}`);
+    return undefined;
+  }
+}
+
 // Registration
 
-export function registerAll(context: vscode.ExtensionContext, deps: Deps): void {
+export function registerAll(
+  context: vscode.ExtensionContext,
+  deps: Deps
+): void {
   const { collection, output } = deps;
 
   context.subscriptions.push(
     vscode.commands.registerCommand("securegitx.scanStaged", async () => {
       const cwd = requireWorkspaceRoot();
       if (!cwd) return;
-      const execPath = scanner.resolveExecutable(cwd);
+
+      const execPath = resolveExecutableOrReport(cwd, output);
+      if (!execPath) return;
+
       await runScan("staged", execPath, cwd, collection, output);
     }),
 
     vscode.commands.registerCommand("securegitx.scanTracked", async () => {
       const cwd = requireWorkspaceRoot();
       if (!cwd) return;
-      const execPath = scanner.resolveExecutable(cwd);
+
+      const execPath = resolveExecutableOrReport(cwd, output);
+      if (!execPath) return;
+
       await runScan("tracked", execPath, cwd, collection, output);
     }),
 
     vscode.commands.registerCommand("securegitx.installHook", async () => {
       const cwd = requireWorkspaceRoot();
       if (!cwd) return;
-      const execPath = scanner.resolveExecutable(cwd);
+
+      const execPath = resolveExecutableOrReport(cwd, output);
+      if (!execPath) return;
 
       try {
         const msg = await scanner.installHook(execPath, cwd);
@@ -64,10 +95,30 @@ export function registerAll(context: vscode.ExtensionContext, deps: Deps): void 
       }
     }),
 
+    vscode.commands.registerCommand("securegitx.uninstallHook", async () => {
+      const cwd = requireWorkspaceRoot();
+      if (!cwd) return;
+
+      const execPath = resolveExecutableOrReport(cwd, output);
+      if (!execPath) return;
+
+      try {
+        const msg = await scanner.uninstallHook(execPath, cwd);
+        output.appendLine(`[hook] ${msg}`);
+        vscode.window.showInformationMessage(`SecureGitX: ${msg}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        output.appendLine(`[hook] error: ${msg}`);
+        vscode.window.showErrorMessage(`SecureGitX: ${msg}`);
+      }
+    }),
+
     vscode.commands.registerCommand("securegitx.updateRules", async () => {
       const cwd = requireWorkspaceRoot();
       if (!cwd) return;
-      const execPath = scanner.resolveExecutable(cwd);
+
+      const execPath = resolveExecutableOrReport(cwd, output);
+      if (!execPath) return;
 
       output.show(true);
       output.appendLine("[rules] Checking for updates...");
@@ -81,11 +132,6 @@ export function registerAll(context: vscode.ExtensionContext, deps: Deps): void 
         output.appendLine(`[rules] error: ${msg}`);
         vscode.window.showErrorMessage(`SecureGitX: ${msg}`);
       }
-    }),
-
-    vscode.commands.registerCommand("securegitx.clearDiagnostics", () => {
-      diagnostics.clear(collection);
-      output.appendLine("[diagnostics] Cleared");
     })
   );
 }
@@ -113,7 +159,6 @@ async function runScan(
           ? await scanner.scanStaged(execPath, cwd)
           : await scanner.scanTracked(execPath, cwd);
 
-      // Log raw exit code for debugging 
       output.appendLine(
         `[scan:${mode}] exit=${result.exit_code} findings=${result.findings.length}`
       );
@@ -132,7 +177,9 @@ async function runScan(
 
       const count = result.findings.length;
       if (count === 0) {
-        vscode.window.showInformationMessage("SecureGitX: no secrets detected ✓");
+        vscode.window.showInformationMessage(
+          "SecureGitX: no secrets detected ✓"
+        );
         return;
       }
 
