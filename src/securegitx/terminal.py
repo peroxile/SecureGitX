@@ -41,6 +41,8 @@ SEP = "────────────────────────�
 
 
 def separator() -> None:
+    if not sys.stdout.isatty():
+        return
     print(SEP)
 
 
