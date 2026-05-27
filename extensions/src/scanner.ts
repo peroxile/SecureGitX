@@ -1,14 +1,15 @@
 // Responsibilities:
 //   - Resolve the securegitx executable
-//   - Spawn CLI processes and collect JSON output
-//   - Parse output into typed Finding objects
+//   - Spawn CLI processes and collect human-readable output for scans
+//   - Spawn CLI processes and collect text output for non-scan commands
+//   - Parse scan output into typed Finding objects
 
 import * as cp from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 
-// Types — mirror securegitx JSON output schema
+// Types — mirror securegitx output schema
 
 export type Severity = "critical" | "high" | "medium" | "low";
 export type Confidence = "high" | "medium" | "low";
@@ -38,84 +39,107 @@ export interface ScanResult {
   error?: string;
 }
 
-// Executable resolution
+export interface CommandResult {
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  error?: string;
+}
 
-// Find the securegitx executable in priority order:
-//  1. securegitx.executablePath setting
-//   2. .venv/bin/securegitx  (POSIX) or .venv\Scripts\securegitx.exe  (Windows)
-//   3. securegitx in PATH
+// Executable resolution
 
 export function resolveExecutable(workspaceRoot: string): string {
   const cfg = vscode.workspace.getConfiguration("securegitx");
   const customPath = cfg.get<string>("executablePath", "").trim();
 
-  if (customPath && fs.existsSync(customPath)) {
-    return customPath;
+  if (customPath) {
+    const resolved = path.isAbsolute(customPath)
+      ? customPath
+      : path.resolve(workspaceRoot, customPath);
+
+    if (fs.existsSync(resolved)) {
+      return resolved;
+    }
   }
 
-  // Virtual-environment paths (POSIX then Windows)
   const candidates = [
     path.join(workspaceRoot, ".venv", "bin", "securegitx"),
     path.join(workspaceRoot, ".venv", "Scripts", "securegitx.exe"),
     path.join(workspaceRoot, "venv", "bin", "securegitx"),
+    path.join(workspaceRoot, "venv", "Scripts", "securegitx.exe"),
   ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
 
-  return "securegitx"; // fall back to PATH
+  return "securegitx";
 }
 
 // Scan commands
-// Scan staged changes — primary mode, mirrors what the pre-commit hook does.
+
 export async function scanStaged(
   execPath: string,
   cwd: string
 ): Promise<ScanResult> {
   const cfg = vscode.workspace.getConfiguration("securegitx");
   const failOn = cfg.get<string>("failOn", "high");
-  return _run(
+
+  return runScanCommand(
     execPath,
-    ["scan", "--staged", "--format", "json", "--quiet", "--fail-on", failOn],
+    ["scan", "--staged", "--fail-on", failOn],
     cwd
   );
 }
 
-// Scan all tracked files — explicit user request only.
 export async function scanTracked(
   execPath: string,
   cwd: string
 ): Promise<ScanResult> {
   const cfg = vscode.workspace.getConfiguration("securegitx");
   const failOn = cfg.get<string>("failOn", "high");
-  return _run(
+
+  return runScanCommand(
     execPath,
-    ["scan", "--tracked", "--format", "json", "--quiet", "--fail-on", failOn],
+    ["scan", "--tracked", "--fail-on", failOn],
     cwd
   );
 }
 
-// Install the pre-commit hook in the current repo.
+// Install / update / uninstall
+
 export async function installHook(
   execPath: string,
   cwd: string
 ): Promise<string> {
-  const result = await _run(execPath, ["hook", "install"], cwd);
-  return result.error ?? "Hook installed";
+  const result = await runTextCommand(execPath, ["hook", "install"], cwd);
+  if (result.error) throw new Error(result.error);
+  return result.stdout.trim() || "Hook installed";
 }
 
-//  Update the rule bundle (requires updater.py to be wired in).
+export async function uninstallHook(
+  execPath: string,
+  cwd: string
+): Promise<string> {
+  const result = await runTextCommand(execPath, ["hook", "uninstall"], cwd);
+  if (result.error) throw new Error(result.error);
+  return result.stdout.trim() || "Hook uninstalled";
+}
+
 export async function updateRules(
   execPath: string,
   cwd: string
 ): Promise<string> {
-  const result = await _run(execPath, ["rules", "update"], cwd);
-  return result.error ?? "Rules updated";
+  const result = await runTextCommand(execPath, ["rules", "update"], cwd);
+  if (result.error) throw new Error(result.error);
+  return result.stdout.trim() || "Rules updated";
 }
 
-// Internal process runner
+// Internal runners
 
-function _run(
+function runScanCommand(
   execPath: string,
   args: string[],
   cwd: string
@@ -123,24 +147,41 @@ function _run(
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
+    let finished = false;
 
     const proc = cp.spawn(execPath, args, {
       cwd,
       env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      shell: false,
     });
+
+    const timer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      proc.kill();
+      resolve({
+        findings: [],
+        summary: emptySummary(),
+        exit_code: -1,
+        error: "securegitx timed out while scanning",
+      });
+    }, 30_000);
 
     proc.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
     });
+
     proc.stderr.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
     });
 
     proc.on("error", (err) => {
-      // Executable not found or couldn't be spawned
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
       resolve({
         findings: [],
-        summary: _emptySummary(),
+        summary: emptySummary(),
         exit_code: -1,
         error:
           `Could not launch securegitx: ${err.message}. ` +
@@ -149,45 +190,271 @@ function _run(
     });
 
     proc.on("close", (code) => {
-      // exit 0 = clean, exit 1 = findings above threshold, anything else = error
-      const isError = code !== null && code !== 0 && code !== 1;
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+
+      const combined = `${stdout}\n${stderr}`.trim();
+      const parsed = parseScanOutput(combined);
+
       resolve({
-        findings: _parseFindings(stdout),
-        summary: _parseSummary(stdout),
+        findings: parsed.findings,
+        summary: parsed.summary,
         exit_code: code ?? 0,
-        error: isError
-          ? stderr.trim() || `securegitx exited with code ${code}`
-          : undefined,
+        error:
+          code !== null && code !== 0 && code !== 1
+            ? stderr.trim() || `securegitx exited with code ${code}`
+            : parsed.error,
       });
     });
   });
 }
 
-// Output parsers
+function runTextCommand(
+  execPath: string,
+  args: string[],
+  cwd: string
+): Promise<CommandResult> {
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let finished = false;
 
-function _parseFindings(output: string): Finding[] {
-  if (!output.trim()) return [];
-  try {
-    const data = JSON.parse(output);
-    // Support both bare array and {findings: [...]} object
-    return Array.isArray(data) ? data : data.findings ?? [];
-  } catch {
-    return [];
-  }
+    const proc = cp.spawn(execPath, args, {
+      cwd,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      shell: false,
+    });
+
+    const timer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      proc.kill();
+      resolve({
+        exit_code: -1,
+        stdout,
+        stderr,
+        error: "securegitx timed out",
+      });
+    }, 30_000);
+
+    proc.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on("error", (err) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      resolve({
+        exit_code: -1,
+        stdout,
+        stderr,
+        error:
+          `Could not launch securegitx: ${err.message}. ` +
+          `Check the 'securegitx.executablePath' setting.`,
+      });
+    });
+
+    proc.on("close", (code) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+
+      resolve({
+        exit_code: code ?? 0,
+        stdout,
+        stderr,
+        error:
+          code !== null && code !== 0
+            ? stderr.trim() || `securegitx exited with code ${code}`
+            : undefined,
+      });
+    });
+  });
 }
 
-function _parseSummary(output: string): ScanSummary {
-  if (!output.trim()) return _emptySummary();
-  try {
-    const data = JSON.parse(output);
-    if (data.summary) return data.summary as ScanSummary;
-  } catch {
-    // ignore
+// Text parsing
+
+function parseScanOutput(output: string): ScanResult {
+  if (!output.trim()) {
+    return {
+      findings: [],
+      summary: emptySummary(),
+      exit_code: 0,
+      error: "securegitx returned no output",
+    };
   }
-  return _emptySummary();
+
+  const findings = parseFindingsFromText(output);
+  const summary = buildSummary(findings);
+
+  return {
+    findings,
+    summary,
+    exit_code: 0,
+    error:
+      findings.length === 0 && /commit blocked|finding\(s\)|^✖/im.test(output)
+        ? "securegitx reported findings but none could be parsed"
+        : undefined,
+  };
 }
 
-function _emptySummary(): ScanSummary {
+function parseFindingsFromText(output: string): Finding[] {
+  const lines = output.split(/\r?\n/);
+  const findings: Finding[] = [];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+
+    const header = parseFindingHeader(line);
+    if (!header) {
+      i++;
+      continue;
+    }
+
+    const finding: Finding = {
+      rule_id: header.rule_id,
+      rule_name: header.rule_name,
+      severity: header.severity,
+      file: "",
+      line_number: 0,
+      matched_text: "",
+      reason: "",
+      remediation: "",
+      confidence: "high",
+    };
+
+    i++;
+
+    while (i < lines.length) {
+      const raw = lines[i].trim();
+
+      if (!raw) {
+        i++;
+        break;
+      }
+
+      if (parseFindingHeader(raw)) {
+        break;
+      }
+
+      const field = parseField(raw);
+      if (field) {
+        switch (field.key) {
+          case "file": {
+            const { file, line_number } = parseFileAndLine(field.value);
+            finding.file = file;
+            finding.line_number = line_number;
+            break;
+          }
+          case "match":
+            finding.matched_text = field.value;
+            break;
+          case "why":
+            finding.reason = field.value;
+            break;
+          case "fix":
+            finding.remediation = field.value;
+            break;
+        }
+      }
+
+      i++;
+    }
+
+    if (
+      finding.rule_id ||
+      finding.file ||
+      finding.reason ||
+      finding.remediation
+    ) {
+      findings.push(finding);
+    }
+  }
+
+  return findings;
+}
+
+function parseFindingHeader(
+  line: string
+): { severity: Severity; rule_name: string; rule_id: string } | undefined {
+  // Examples:
+  // ✖ [CRITICAL] stripe_api_key (SGX006)
+  // ⚠ [HIGH] env_file (SGX103)
+  const match = line.match(
+    /^[^\[]*\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(.+?)\s+\(([^)]+)\)\s*$/i
+  );
+
+  if (!match) {
+    return undefined;
+  }
+
+  return {
+    severity: match[1].toLowerCase() as Severity,
+    rule_name: match[2].trim(),
+    rule_id: match[3].trim(),
+  };
+}
+
+function parseField(
+  line: string
+): { key: "file" | "match" | "why" | "fix"; value: string } | undefined {
+  const match = line.match(/^(File|Match|Why|Fix)\s*:?\s*(.*)$/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const key = match[1].toLowerCase() as "file" | "match" | "why" | "fix";
+  const value = match[2].trim();
+  return { key, value };
+}
+
+function parseFileAndLine(value: string): {
+  file: string;
+  line_number: number;
+} {
+  const match = value.match(/^(.*?)(?::(\d+))?$/);
+  if (!match) {
+    return { file: value.trim(), line_number: 0 };
+  }
+
+  const file = match[1].trim();
+  const line_number = match[2] ? Number(match[2]) : 0;
+
+  return {
+    file,
+    line_number: Number.isFinite(line_number) ? line_number : 0,
+  };
+}
+
+function buildSummary(findings: Finding[]): ScanSummary {
+  const counts: Record<Severity, number> = {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+  };
+
+  for (const finding of findings) {
+    if (finding.severity in counts) {
+      counts[finding.severity] += 1;
+    }
+  }
+
+  return {
+    total: findings.length,
+    clean: findings.length === 0,
+    by_severity: counts,
+  };
+}
+
+function emptySummary(): ScanSummary {
   return {
     total: 0,
     clean: true,
