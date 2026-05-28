@@ -88,29 +88,6 @@ Install development dependencies:
 ```bash
 pip install -e ".[dev]"
 ```
-
----
-
-## Project Structure
-
-```text
-src/securegitx/
-├── cli.py
-├── scanner.py
-├── gitops.py
-├── hooks.py
-├── config.py
-├── report.py
-├── terminal.py
-├── daemon.py
-├── gitignore_builder.py
-├── project_detect.py
-└── rules/
-    ├── __init__.py
-    ├── rules.json
-    └── allowlist.json
-```
-
 ---
 
 ## Architectural Boundaries
