@@ -130,6 +130,9 @@ securegitx init --no-gitignore  # skip .gitignore generation
 ```sh
 securegitx rules list         # show all loaded rules with ID, severity, type, name
 securegitx rules validate     # verify rules.json is valid and all patterns compile
+securegitx rules list         # list loaded rules
+securegitx rules updated      # fetch  rules 
+seuregitx rules rollback      # rollback updated rules
 ```
 
 ### Daemon
