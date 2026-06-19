@@ -17,7 +17,6 @@ We welcome pull requests, bug reports, and feature ideas.
 - [Commit Message Convention](#commit-message-convention)
 - [Pull Request Guidelines](#pull-request-guidelines)
 - [Security Reports](#security-reports)
-- [Making Changes](#making-changes)
 - [Pull Request Guidelines](#pull-request-guidelines)
 
 ---
@@ -33,8 +32,6 @@ SecureGitX is built around a few strict invariants:
 - Config must never execute code
 - Git operations must stay isolated from scanning logic
 - Advisory systems (daemon, gitignore generation) must never mutate repositories implicitly
-
-When contributing, preserve module boundaries and avoid introducing hidden coupling.
 
 ---
 
