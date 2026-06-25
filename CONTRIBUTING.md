@@ -244,8 +244,6 @@ Large architectural changes should be discussed in an issue first.
 
 ## Security Reports
 
-Do not open public issues for undisclosed vulnerabilities.
-
 Report security issues privately through GitHub Security Advisories:
 
 [GitHub Security Advisories](https://github.com/peroxile/SecureGitX/security/advisories)
