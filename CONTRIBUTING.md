@@ -10,12 +10,10 @@ We welcome pull requests, bug reports, and feature ideas.
 - [Code of Conduct](#code-of-conduct)
 - [How Can I Contribute?](#how-can-i-contribute)
 - [Development Setup](#development-setup)
-- [Project Structure](#project-structure)
 - [Architectural Boundaries](#architectural-boundaries)
 - [Rule Contributions](#rule-contributions)
 - [Good Rule Properities](#good-rule-properties)
 - [Commit Message Convention](#commit-message-convention)
-- [Pull Request Guidelines](#pull-request-guidelines)
 - [Security Reports](#security-reports)
 - [Pull Request Guidelines](#pull-request-guidelines)
 
