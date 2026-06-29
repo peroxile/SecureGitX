@@ -22,6 +22,12 @@ SecureGitX is a local first pre-commit secret scanner. It inspects your staged c
 pip install git+https://github.com/peroxile/SecureGitX.git
 ```
 
+## One Liner 
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/peroxile/SecureGitX/main/scripts/install.sh | bash
+```
+
 Or clone and install locally:
 
 ```sh
