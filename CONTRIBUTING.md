@@ -247,9 +247,3 @@ Large architectural changes should be discussed in an issue first.
 Report security issues privately through GitHub Security Advisories:
 
 [GitHub Security Advisories](https://github.com/peroxile/SecureGitX/security/advisories)
-
----
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
