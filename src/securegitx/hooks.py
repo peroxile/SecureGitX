@@ -2,6 +2,7 @@
 Hook installation and removal.
 Manages .git/hooks/pre-commit only. No scanning logic.
 """
+
 from __future__ import annotations
 
 import shutil

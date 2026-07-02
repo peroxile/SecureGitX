@@ -6,13 +6,13 @@ Output:  list[Finding]
 
 No Git operations here. No IO. Pure logic.
 """
+
 from __future__ import annotations
 
 import math
 import re
 import string
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 from securegitx.rules import AllowEntry, Rule, is_allowlisted
 
@@ -30,7 +30,7 @@ class Finding:
     rule_name: str
     severity: str
     file: str
-    line_number: int          # 0 for filename matches
+    line_number: int  # 0 for filename matches
     matched_text: str
     reason: str
     remediation: str
@@ -38,15 +38,15 @@ class Finding:
 
     def as_dict(self) -> dict:
         return {
-            "rule_id":      self.rule_id,
-            "rule_name":    self.rule_name,
-            "severity":     self.severity,
-            "file":         self.file,
-            "line_number":  self.line_number,
+            "rule_id": self.rule_id,
+            "rule_name": self.rule_name,
+            "severity": self.severity,
+            "file": self.file,
+            "line_number": self.line_number,
             "matched_text": _redact(self.matched_text),
-            "reason":       self.reason,
-            "remediation":  self.remediation,
-            "confidence":   self.confidence,
+            "reason": self.reason,
+            "remediation": self.remediation,
+            "confidence": self.confidence,
         }
 
 
@@ -79,6 +79,7 @@ def _is_high_entropy(token: str, threshold: float) -> bool:
 
 #  Filename scanning
 
+
 def scan_filenames(
     filenames: list[str],
     rules: list[Rule],
@@ -94,21 +95,25 @@ def scan_filenames(
                 continue
             if is_allowlisted(filename, filename, rule.id, allowlist):
                 continue
-            findings.append(Finding(
-                rule_id=rule.id,
-                rule_name=rule.name,
-                severity=rule.severity,
-                file=filename,
-                line_number=0,
-                matched_text=filename,
-                reason=rule.description or f"Filename matches sensitive pattern: {rule.name}",
-                remediation=rule.remediation,
-            ))
+            findings.append(
+                Finding(
+                    rule_id=rule.id,
+                    rule_name=rule.name,
+                    severity=rule.severity,
+                    file=filename,
+                    line_number=0,
+                    matched_text=filename,
+                    reason=rule.description
+                    or f"Filename matches sensitive pattern: {rule.name}",
+                    remediation=rule.remediation,
+                )
+            )
 
     return findings
 
 
 #  Diff content scanning
+
 
 def scan_diff(
     diff_text: str | None,
@@ -146,9 +151,14 @@ def scan_diff(
             line_number += 1
             line_content = raw_line[1:]  # strip the leading '+'
             _scan_line(
-                line_content, line_number, current_file,
-                content_rules, allowlist, entropy_threshold,
-                findings, seen,
+                line_content,
+                line_number,
+                current_file,
+                content_rules,
+                allowlist,
+                entropy_threshold,
+                findings,
+                seen,
             )
         elif not raw_line.startswith("-"):
             line_number += 1
@@ -172,9 +182,14 @@ def scan_file_content(
 
     for line_number, line in enumerate(content.splitlines(), start=1):
         _scan_line(
-            line, line_number, filename,
-            content_rules, allowlist, entropy_threshold,
-            findings, seen,
+            line,
+            line_number,
+            filename,
+            content_rules,
+            allowlist,
+            entropy_threshold,
+            findings,
+            seen,
         )
 
     return findings
@@ -200,20 +215,23 @@ def _scan_line(
             seen.add(key)
             if is_allowlisted(matched, filename, rule.id, allowlist):
                 continue
-            findings.append(Finding(
-                rule_id=rule.id,
-                rule_name=rule.name,
-                severity=rule.severity,
-                file=filename,
-                line_number=line_number,
-                matched_text=matched,
-                reason=rule.description or f"Matched rule: {rule.name}",
-                remediation=rule.remediation,
-            ))
+            findings.append(
+                Finding(
+                    rule_id=rule.id,
+                    rule_name=rule.name,
+                    severity=rule.severity,
+                    file=filename,
+                    line_number=line_number,
+                    matched_text=matched,
+                    reason=rule.description or f"Matched rule: {rule.name}",
+                    remediation=rule.remediation,
+                )
+            )
 
     # Entropy heuristic — runs after rule matching, secondary signal only
-    _entropy_scan_line(line, line_number, filename, allowlist,
-                       entropy_threshold, findings, seen)
+    _entropy_scan_line(
+        line, line_number, filename, allowlist, entropy_threshold, findings, seen
+    )
 
 
 def _entropy_scan_line(
@@ -235,8 +253,7 @@ def _entropy_scan_line(
             continue
         # Only flag if no named rule already caught it on this line
         already_found = any(
-            f.file == filename and f.line_number == line_number
-            for f in findings
+            f.file == filename and f.line_number == line_number for f in findings
         )
         if already_found:
             continue
@@ -246,14 +263,16 @@ def _entropy_scan_line(
         seen.add(key)
         if is_allowlisted(token, filename, "SGX_ENTROPY", allowlist):
             continue
-        findings.append(Finding(
-            rule_id="SGX_ENTROPY",
-            rule_name="high_entropy_token",
-            severity="medium",
-            file=filename,
-            line_number=line_number,
-            matched_text=token,
-            reason=f"High-entropy token (entropy={_shannon_entropy(token):.2f})",
-            remediation="Review this token. If it is a secret, move it to environment variables.",
-            confidence="low",
-        ))
+        findings.append(
+            Finding(
+                rule_id="SGX_ENTROPY",
+                rule_name="high_entropy_token",
+                severity="medium",
+                file=filename,
+                line_number=line_number,
+                matched_text=token,
+                reason=f"High-entropy token (entropy={_shannon_entropy(token):.2f})",
+                remediation="Review this token. If it is a secret, move it to environment variables.",
+                confidence="low",
+            )
+        )
