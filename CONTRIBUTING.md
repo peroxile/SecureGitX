@@ -1,21 +1,19 @@
 # Contributing to SecureGitX
 
 Thank you for considering contributing to **SecureGitX**!  
-We welcome pull requests, bug reports, and feature ideas.
 
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
 - [Philosophy](#philosophy)
 - [Code of Conduct](#code-of-conduct)
 - [How Can I Contribute?](#how-can-i-contribute)
 - [Development Setup](#development-setup)
 - [Architectural Boundaries](#architectural-boundaries)
 - [Rule Contributions](#rule-contributions)
-- [Good Rule Properties](#good-rule-properties)
+- [Rule Properties](#rule-properties)
 - [Commit Message Convention](#commit-message-convention)
-- [Security Reports](#security-reports)
 - [Pull Request Guidelines](#pull-request-guidelines)
+- [Security Reports](#security-reports)
 
 ---
 
@@ -36,7 +34,6 @@ SecureGitX is built around a few strict invariants:
 ## Code of Conduct
 
 This project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).  
-Be kind, respectful, and assume best intentions.
 
 ---
 
@@ -132,7 +129,7 @@ Must not:
 
 Configuration loading only.
 
-Must never:
+Must not:
 
 * execute arbitrary code
 * import user modules
@@ -142,7 +139,7 @@ Must never:
 
 Advisory background system only.
 
-Must never:
+Must not:
 
 * block commits
 * mutate tracked files automatically
@@ -176,7 +173,6 @@ Run type checking:
 pyright
 ```
 
-All checks should pass before opening a pull request.
 
 ---
 
@@ -198,9 +194,8 @@ Every new rule should include:
 * examples
 * non_examples
 
-Avoid broad regexes that create excessive false positives.
 
-## Good Rule Properties
+## Rule Properties
 
 * deterministic
 * low false-positive rate
@@ -212,7 +207,7 @@ Avoid broad regexes that create excessive false positives.
 
 ## Commit Message Convention
 
-We use [Conventional Commits](https://www.conventionalcommits.org):
+This project use [Conventional Commits](https://www.conventionalcommits.org):
 
 ```
 feat: add support for .env.local files
@@ -235,10 +230,6 @@ Before opening a PR:
 * Ensure type checks pass
 * Ensure lint checks pass
 * Keep PRs focused and minimal
-* Explain security implications for detection changes
-* Add documentation for behavioral changes
-
-Large architectural changes should be discussed in an issue first.
 
 ---
 
