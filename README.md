@@ -47,7 +47,7 @@ Requires Python 3.10+.
 securegitx init
 securegitx hook install
 
-# 2. Work normally — the hook fires automatically on every commit
+# 2. Work normally — the hook evokes automatically on every commit
 git add src/
 git commit -m "feat: add login"
 
@@ -74,8 +74,8 @@ pre-commit hook
     ├── entropy check           → block on high-entropy tokens
     │
     ├── findings above threshold?
-    │       YES → print findings, exit 1 (commit blocked)
-    │       NO  → exit 0 (commit proceeds)
+    │       YES → print findings(commit blocked)
+    │       NO  → commit proceeds
 ```
 
 The hook is the enforcement edge. Nothing else blocks commits — not the daemon, not the CLI scan command. The invariant is local and unconditional.
