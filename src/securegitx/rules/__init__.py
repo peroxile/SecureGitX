@@ -4,20 +4,13 @@ Rule and allowlist types, loaders, and allowlist matching.
 rules.json  — bare array OR {"version": ..., "rules": [...]} object (required)
 allowlist.json — bare array OR {"allowlist": [...]} object           (optional)
 
-Rule fields:
-  id          str   unique identifier, e.g. "SGX001"
-  name        str   short slug
-  severity    str   "low" | "medium" | "high" | "critical"
-  type        str   "filename" | "content"
-  pattern     str   Python regex
-  description str   human-readable explanation  (optional)
-  remediation str   fix guidance                (optional)
-
-AllowEntry fields:
-  rule_id  str  rule id to suppress; "*" matches any rule
-  path     str  file path glob;      "*" matches any path   (optional, default "*")
-  value    str  substring match;     "*" matches any value  (optional, default "*")
-  comment  str  reason for suppression                      (optional)
+Public API:
+  Rule, AllowEntry, RuleLoadError
+  load_rules()          → list[Rule]
+  load_allowlist()      → list[AllowEntry]
+  is_allowlisted(...)   → bool
+  rule_version()        → str
+  validate_rules_data() → list[Rule]   (used by updater before install)
 """
 
 from __future__ import annotations
@@ -35,6 +28,8 @@ _RULES_DIR = Path(__file__).parent
 class RuleLoadError(Exception):
     pass
 
+
+# Data types
 
 @dataclass
 class Rule:
@@ -57,11 +52,13 @@ class Rule:
 
 @dataclass
 class AllowEntry:
-    rule_id: str  # rule id to suppress, or "*" for any
-    path: str = "*"  # file path glob, or "*" for any
-    value: str = "*"  # substring to match against value, or "*" for any
+    rule_id: str
+    path: str = "*"
+    value: str = "*"
     comment: str = ""
 
+
+# Allowlist matching
 
 def is_allowlisted(
     value: str,
@@ -77,6 +74,8 @@ def is_allowlisted(
             return True
     return False
 
+
+# Internal helpers
 
 def _unwrap_list(data: object, list_keys: tuple[str, ...], path: Path) -> list:
     """Accept a bare array or a wrapper object with one of list_keys."""
@@ -128,6 +127,8 @@ def _build_rules(entries: list, source_label: str) -> list[Rule]:
     return rules
 
 
+# Public loaders
+
 def load_rules() -> list[Rule]:
     """Load and validate rules from the bundled rules.json."""
     path = _RULES_DIR / "rules.json"
@@ -154,7 +155,6 @@ def load_allowlist() -> list[AllowEntry]:
         raise RuleLoadError(f"allowlist.json invalid JSON: {exc}")
 
     entries_data = _unwrap_list(data, ("allowlist", "entries"), path)
-
     entries: list[AllowEntry] = []
     for i, entry in enumerate(entries_data):
         try:
@@ -168,7 +168,6 @@ def load_allowlist() -> list[AllowEntry]:
             )
         except KeyError as exc:
             raise RuleLoadError(f"Allowlist entry #{i} missing required field: {exc}")
-
     return entries
 
 
