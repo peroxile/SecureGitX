@@ -69,21 +69,15 @@ git commit
     ▼
 pre-commit hook
     │
-    ├── scan staged filenames   → block on sensitive filename patterns
-    ├── scan staged diff        → block on secret content patterns
-    ├── entropy check           → block on high-entropy tokens
+    ├── scan staged filenames 
+    ├── scan staged diff    
+    ├── entropy check 
     │
     ├── findings above threshold?
-    │       YES → print findings(commit blocked)
+    │       YES → commit blocked
     │       NO  → commit proceeds
 ```
 
-The hook is the enforcement edge. Nothing else blocks commits — not the daemon, not the CLI scan command. The invariant is local and unconditional.
-
 ## What it detects
 
-API keys, tokens, credentials, and sensitive filenames across 13 named rules — AWS, GitHub, Stripe, Google OAuth, JWTs, Slack tokens, Firebase keys, PEM headers, database URLs, SSH keys, and `.env` files. An entropy heuristic catches secrets that named rules miss.
-
-## Configuration
-
-Running `securegitx init` creates `.securegitx.toml`. Set `fail_on` to control which severity level blocks commits. Use the `allowlist` table to suppress false positives.
+API keys, tokens, credentials, and sensitive filenames across 20+ named rules — AWS, GitHub, Stripe, Google OAuth, JWTs, Slack tokens, Firebase keys, PEM headers, database URLs, SSH keys, and `.env` files.
