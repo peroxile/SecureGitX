@@ -57,6 +57,8 @@ securegitx "feat: add login"
 
 From this point, any commit containing a secret is blocked with a clear message showing the file, line, rule matched, and what to do next.
 
+---
+
 ![Sample output](assets/demo.png)
 
 ---
