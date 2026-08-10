@@ -1,25 +1,5 @@
-# Contributing to SecureGitX
 
-Thank you for considering contributing to **SecureGitX**!  
-
-## Table of Contents
-
-- [Code of Conduct](#code-of-conduct)
-- [How Can I Contribute?](#how-can-i-contribute)
-- [Development Setup](#development-setup)
-- [Commit Message Convention](#commit-message-convention)
-
----
-
----
-
-## Code of Conduct
-
-This project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).  
-
----
-
-## How Can I Contribute?
+Thanks for wanting to contribute
 
 Contributions are welcome in the following areas:
 
@@ -28,10 +8,9 @@ Contributions are welcome in the following areas:
 - Documentation
 - `.gitignore` templates
 
-
 ---
 
-## Development Setup
+## Quick Setup
 
 
 Clone the repository:
@@ -58,15 +37,12 @@ pip install -e ".[dev]"
 
 ## Running Tests
 
-Run the full suite:
-
 ```bash
 pytest
 ```
-
 ---
 
 ## Commit Message Convention
 
-This project use [Conventional Commits](https://www.conventionalcommits.org):
+Please follow the format [Conventional Commits](https://www.conventionalcommits.org):
 
