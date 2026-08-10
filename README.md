@@ -2,8 +2,6 @@
 
 <div align="center">
 
-**Stop secrets before they leave your machine.**
-
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![CI](https://github.com/peroxile/SecureGitX/actions/workflows/ci.yml/badge.svg)](https://github.com/peroxile/SecureGitX/actions)
@@ -12,7 +10,7 @@
 
 ---
 
-SecureGitX is a local first pre-commit secret scanner. It inspects your staged changes before every `git commit` and blocks the commit if it finds API keys, tokens, credentials, or sensitive filenames.
+SecureGitX is a local first pre-commit secret scanner that blocks API keys, tokens, credentials, or sensitive filenames before they get committed.
 
 ---
 
@@ -43,19 +41,12 @@ Requires Python 3.10+.
 ## Quick start
 
 ```sh
-# 1. Set up your repo (creates config, installs hook, generates .gitignore)
+#  Initialize your repo
 securegitx init
 securegitx hook install
-
-# 2. Work normally — the hook evokes automatically on every commit
-git add src/
-git commit -m "feat: add login"
-
-# Or use SecureGitX directly to scan and commit in one step
-securegitx "feat: add login"
 ```
 
-From this point, any commit containing a secret is blocked with a clear message showing the file, line, rule matched, and what to do next.
+If a secret is found, the commit is blocked with details on what was detected and how to fix it.
 
 ![Sample output](assets/demo.png)
 
@@ -64,20 +55,16 @@ From this point, any commit containing a secret is blocked with a clear message 
 ## How it works
 
 ```
-git commit
-    │
-    ▼
-pre-commit hook
-    │
-    ├── scan staged filenames 
-    ├── scan staged diff    
-    ├── entropy check 
-    │
-    ├── findings above threshold?
-    │       YES → commit blocked
-    │       NO  → commit proceeds
+git commit → pre-commit hook → scan filenames + diff + entropy
+                                   │
+                    ┌──────────────┴──────────────┐
+                    ▼                             ▼
+              findings found?                 no findings
+                    │                             │
+                    ▼                             ▼
+              commit blocked              commit proceeds
 ```
 
-## What it detects
+## Detects
 
-API keys, tokens, credentials, and sensitive filenames across 20+ named rules — AWS, GitHub, Stripe, Google OAuth, JWTs, Slack tokens, Firebase keys, PEM headers, database URLs, SSH keys, and `.env` files.
+20+ rules covering: AWS, GitHub, Stripe, Google OAuth, JWTs, Slack tokens, Firebase keys, PEM headers, database URLs, SSH keys, .env files, and more.

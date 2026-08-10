@@ -44,5 +44,4 @@ pytest
 
 ## Commit Message Convention
 
-Please follow the format [Conventional Commits](https://www.conventionalcommits.org):
-
+Please follow the [Conventional Commits](https://www.conventionalcommits.org) format .
