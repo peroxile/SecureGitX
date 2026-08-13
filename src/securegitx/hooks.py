@@ -17,7 +17,7 @@ _HOOK_TEMPLATE = """\
 # Installed: {timestamp}
 # Remove with: securegitx hook uninstall
 
-securegitx scan --staged
+securegitx scan --staged --quiet
 exit $?
 """
 
