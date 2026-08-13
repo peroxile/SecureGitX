@@ -430,8 +430,8 @@ def read_suggestions(root: Path) -> list[str]:
 
 
 def apply_suggestions(root: Path, project_type: str) -> str:
-    _ensure_dirs(root)
     """Write queued suggestions into .gitignore and clear the queue."""
+    _ensure_dirs(root)
     suggestions = read_suggestions(root)
     if not suggestions:
         return "No pending .gitignore suggestions"
