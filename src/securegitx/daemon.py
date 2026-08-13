@@ -269,7 +269,9 @@ class SecureGitXDaemon:
                 capture_output=True,
                 text=True,
             )
-            untracked = [l.strip() for l in result.stdout.splitlines() if l.strip()]
+            untracked = [
+                line.strip() for line in result.stdout.splitlines() if line.strip()
+            ]
             if not untracked:
                 return
 
@@ -279,7 +281,9 @@ class SecureGitXDaemon:
 
             for finding in sensitive:
                 _LOG.warning(
-                    "Sensitive untracked file: %s [%s]", finding.file, finding.rule_id
+                    "Sensitive untracked file: %s [%s]",
+                    finding.file,
+                    finding.rule_id,
                 )
                 self._queue_suggestion(finding.file)
 
@@ -371,7 +375,6 @@ def stop(root: Path) -> str:
         import signal
 
         os.kill(pid, signal.SIGTERM)
-        # Wait for it to exit
         for _ in range(20):
             time.sleep(0.2)
             if not is_running(root):
@@ -420,6 +423,7 @@ def status(root: Path) -> str:
 
 
 def read_suggestions(root: Path) -> list[str]:
+    """Return pending .gitignore suggestions from the daemon cache."""
     path = _suggestions_path(root)
     if not path.exists():
         return []
