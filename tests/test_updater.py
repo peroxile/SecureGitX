@@ -457,7 +457,7 @@ def test_check_shows_update_available(tmp_path, monkeypatch):
 
     monkeypatch.setattr("securegitx.updater._fetch", _mock_fetch(_as_bytes(_RULE_V2)))
     result = check()
-    assert "update available" in result
+    assert "update available" in result.lower()
 
 
 def test_check_shows_up_to_date(tmp_path, monkeypatch):
@@ -466,7 +466,7 @@ def test_check_shows_up_to_date(tmp_path, monkeypatch):
 
     monkeypatch.setattr("securegitx.updater._fetch", _mock_fetch(_as_bytes(_RULE_V2)))
     result = check()
-    assert "up to date" in result
+    assert "up to date" in result.lower()
 
 
 def test_check_handles_network_error_gracefully(tmp_path, monkeypatch):
