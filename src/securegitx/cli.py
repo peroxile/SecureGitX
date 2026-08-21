@@ -54,7 +54,7 @@ def _git_branch() -> str:
 
 
 def _show_auth_phase() -> None:
-    T.log_step("PHASE 1: AUTHENTICATION — Identity")
+    T.log_step("AUTHENTICATION")
     T.separator()
 
     name = _git_cfg("user.name")
@@ -326,7 +326,7 @@ def _cmd_commit(message: str) -> int:
 
         staged = gitops.staged_files()
 
-        T.log_step("PHASE 2: SCANNING — Staged Changes")
+        T.log_step("SCANNING...")
         T.separator()
 
         if not staged:
@@ -364,7 +364,7 @@ def _cmd_commit(message: str) -> int:
     T.separator()
     print()
 
-    T.log_step("PHASE 3: SECURE COMMIT")
+    T.log_step("SECURE COMMIT")
     T.separator()
     T.log_info(f"Author:  {_git_cfg('user.name')} <{_git_cfg('user.email')}>")
     T.log_info(f"Branch:  {_git_branch()}")
